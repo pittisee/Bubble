@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" 
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Cosmic Bubble Challenge</title>
   <style>
     * {
@@ -11,12 +12,12 @@
       box-sizing: border-box;
       touch-action: manipulation;
     }
-    /* The body fills the entire screen and its background will be updated gradually */
+    /* Full-screen body */
     body {
       margin: 0;
       width: 100vw;
       height: 100vh;
-      background: linear-gradient(45deg, #0f0c29, #302b63);
+      background: linear-gradient(45deg, #0f0c29, #302b63, #24243e);
       font-family: Arial, sans-serif;
       overflow: hidden;
       transition: background 0.5s ease;
@@ -24,7 +25,7 @@
       justify-content: center;
       align-items: center;
     }
-    /* Full-screen container that centers the square game area */
+    /* The game container fills the whole screen */
     #gameContainer {
       position: relative;
       width: 100vw;
@@ -34,15 +35,13 @@
       align-items: center;
       background: transparent;
     }
-    /* The game canvas is kept square based on the smaller viewport dimension */
+    /* The canvas is always square and as large as possible without deformation */
     #gameCanvas {
-      width: 95vmin;
-      height: 95vmin;
-      max-width: 600px;
-      max-height: 600px;
+      width: 100vmin;
+      height: 100vmin;
       display: block;
     }
-    /* UI elements positioned in the game container */
+    /* UI elements */
     #ui, #powerups {
       position: absolute;
       color: white;
@@ -60,7 +59,7 @@
       top: 15px;
       right: 15px;
     }
-    /* The game-over overlay covers the container when the game ends */
+    /* Game-over overlay (centered) */
     #gameOverOverlay {
       position: absolute;
       top: 0;
@@ -109,7 +108,7 @@
       Speed: <span id="speedMultiplier">1x</span><br>
       Spawn: <span id="spawnMultiplier">1x</span>
     </div>
-    <!-- Game over overlay (hidden during play) -->
+    <!-- Game-over overlay -->
     <div id="gameOverOverlay">
       <div id="gameOverText"></div>
       <button id="restart">Restart</button>
@@ -127,27 +126,22 @@
         let animationFrameId = null;
         let highScore = localStorage.getItem('bubbleHighScore') || 0;
         
-        // For the earthquake (screen shake) effect
+        // For the screen shake (earthquake) effect
         let shakeTimer = 0;
         let prevTimestamp = 0;
         
         const explosions = [];
         const shatters = [];
         
-        // Keep the canvas dimensions relative to the game container (preserving square aspect ratio)
+        // Resize the canvas so that it remains a square equal to the minimum of window dimensions
         const resizeCanvas = () => {
-          const container = document.getElementById('gameContainer');
-          const size = Math.min(
-            container.clientWidth,
-            container.clientHeight,
-            600
-          );
+          const size = Math.min(window.innerWidth, window.innerHeight);
           canvas.width = size;
           canvas.height = size;
           ctx.imageSmoothingEnabled = false;
         };
 
-        // Game state initialization (lives increased to 5)
+        // Game state (lives now start at 5)
         const state = {
           score: 0,
           lives: 5,
@@ -163,7 +157,7 @@
           spawnMultiplier: 1
         };
 
-        // Helper functions for color interpolation
+        // Helper functions for gradual background change (gradually cool over time)
         function hexToRgb(hex) {
           hex = hex.replace(/^#/, '');
           if (hex.length === 3) {
@@ -186,17 +180,14 @@
           const b = Math.round(c1.b + (c2.b - c1.b) * factor);
           return rgbToHex(r, g, b);
         }
-        // Update the background gradually based on the speed multiplier
+        // Gradually update the background from a warm theme to a cooler theme as speedMultiplier increases.
         function updateBackground() {
-          // Factor from 0 (speedMultiplier=1) to 1 (speedMultiplier=17)
           let factor = (state.speedMultiplier - 1) / (17 - 1);
-          // Interpolate between initial and final color stops
-          const initialStop1 = "#0f0c29";
-          const initialStop2 = "#302b63";
-          const finalStop1 = "#000428";
-          const finalStop2 = "#004e92";
-          const stop1 = interpolateColor(initialStop1, finalStop1, factor);
-          const stop2 = interpolateColor(initialStop2, finalStop2, factor);
+          // Start with warm colors and move toward cooler colors
+          const warm1 = "#0f0c29", warm2 = "#302b63";
+          const cool1 = "#000428", cool2 = "#004e92";
+          const stop1 = interpolateColor(warm1, cool1, factor);
+          const stop2 = interpolateColor(warm2, cool2, factor);
           document.body.style.background = `linear-gradient(45deg, ${stop1}, ${stop2})`;
         }
 
@@ -397,6 +388,7 @@
             state.difficultyTimer = 0;
           }
           updateBackground();
+          
           ctx.save();
           if (shakeTimer > 0) {
             const shakeIntensity = 10;
@@ -411,16 +403,15 @@
             state.lastSpawn = timestamp;
           }
           
-          // Update bubbles and check if they cross the top edge
           for (let i = state.bubbles.length - 1; i >= 0; i--) {
             const bubble = state.bubbles[i];
             bubble.update();
             bubble.draw();
+            // If the bubble (orb) goes past the top edge, decrease lives and trigger a shake.
             if (bubble.y < -bubble.size) {
               state.bubbles.splice(i, 1);
               if (bubble.type !== 'BOMB') {
                 state.lives = Math.max(0, state.lives - 1);
-                // Shake screen when a non-bomb orb hits the top
                 shakeTimer = 2000;
                 if (state.lives <= 0) {
                   endGame();
@@ -490,7 +481,6 @@
             highScore = state.score;
             localStorage.setItem('bubbleHighScore', highScore);
           }
-          // Display the game-over overlay with final scores
           gameOverText.innerHTML = `<div>Game Over!</div><div>Score: ${state.score}</div><div>High Score: ${highScore}</div>`;
           gameOverOverlay.style.display = 'flex';
         }
