@@ -23,12 +23,11 @@
       font-family: Arial, sans-serif;
       transition: background 0.5s ease;
     }
+    /* Fullscreen container */
     #gameContainer {
       position: relative;
-      /* Responsive square container using viewport minimum dimension */
-      width: 100vmin;
-      height: 100vmin;
-      border-radius: 10px;
+      width: 100vw;
+      height: 100vh;
       overflow: hidden;
     }
     #gameCanvas {
@@ -106,15 +105,13 @@
         let animationFrameId = null;
         let highScore = localStorage.getItem('bubbleHighScore') || 0;
         
-        // Arrays for explosion and shatter effects
         const explosions = [];
         const shatters = [];
         
-        // Responsive canvas: set size to be a square based on viewport minimum dimension
+        // Set canvas dimensions to full screen
         const resizeCanvas = () => {
-          const size = Math.min(window.innerWidth, window.innerHeight);
-          canvas.width = size;
-          canvas.height = size;
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
           ctx.imageSmoothingEnabled = false;
         };
 
@@ -228,7 +225,8 @@
           // Adjust speed based on bubble type.
           getSpeedMod() {
             if (this.type === 'QUICK') {
-              return 1.5;
+              // 15% slower than before (1.5 * 0.85 ≈ 1.275)
+              return 1.275;
             } else if (this.type === 'BOMB') {
               return 0.8;
             }
@@ -236,7 +234,6 @@
           }
           calculateSize() {
             return {
-              // Increase the smallest bubble (QUICK) by 15%
               'QUICK': Math.round(25 * 1.15),
               'BOMB': 35,
               'NORMAL': Math.random() * 30 + 30
@@ -327,10 +324,10 @@
             document.getElementById('spawnMultiplier').textContent = `${state.spawnMultiplier.toFixed(1)}x`;
           }
           
-          // Visual changes based on speed multiplier thresholds.
-          if (state.speedMultiplier >= 11.33) {
+          // Theme changes at 2/5 (6.8x) and 4/5 (13.6x) thresholds.
+          if (state.speedMultiplier >= 13.6) {
             document.body.style.background = "linear-gradient(45deg, #000428, #004e92)";
-          } else if (state.speedMultiplier >= 8.5) {
+          } else if (state.speedMultiplier >= 6.8) {
             document.body.style.background = "linear-gradient(45deg, #1a2a6c, #b21f1f, #fdbb2d)";
           } else {
             document.body.style.background = "linear-gradient(45deg, #0f0c29, #302b63, #24243e)";
@@ -390,7 +387,7 @@
                 explosions.push(new Explosion(bubble.x, bubble.y, 'rgba(255,50,50,0.9)'));
               } else {
                 shatters.push(new Shatter(bubble.x, bubble.y, `hsla(${bubble.colorAngle},100%,80%,0.9)`));
-                state.score += Math.floor((100 - bubble.size) * (bubble.type === 'QUICK' ? 1.5 : 1) * state.combo);
+                state.score += Math.floor((100 - bubble.size) * (bubble.type === 'QUICK' ? 1.275 : 1) * state.combo);
                 state.combo = Math.min(10, state.combo + 0.25);
               }
               hit = true;
