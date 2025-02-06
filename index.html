@@ -2,8 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" 
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Cosmic Bubble Challenge</title>
   <style>
     * {
@@ -69,13 +68,12 @@
       height: 100%;
       background: rgba(0, 0, 0, 0.7);
       color: #fff;
-      display: flex;
+      display: none;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       font-size: 24px;
       z-index: 4;
-      display: none;
     }
     #gameOverOverlay button {
       margin-top: 20px;
@@ -124,7 +122,8 @@
         const gameOverText = document.getElementById('gameOverText');
         const restartButton = document.getElementById('restart');
         let animationFrameId = null;
-        let highScore = localStorage.getItem('bubbleHighScore') || 0;
+        // Convert high score from storage to a number (or default to 0)
+        let highScore = Number(localStorage.getItem('bubbleHighScore')) || 0;
         
         // For the screen shake effect (in ms)
         let shakeTimer = 0;
@@ -217,7 +216,7 @@
             this.particles.forEach(p => {
               p.x += p.dx;
               p.y += p.dy;
-              p.opacity -= 0.02;
+              p.opacity = Math.max(0, p.opacity - 0.02);
             });
           }
           draw() {
@@ -257,7 +256,7 @@
             this.particles.forEach(p => {
               p.x += p.dx;
               p.y += p.dy;
-              p.opacity -= 0.03;
+              p.opacity = Math.max(0, p.opacity - 0.03);
             });
           }
           draw() {
@@ -282,11 +281,8 @@
             this.rotation = 0;
           }
           getSpeedMod() {
-            if (this.type === 'QUICK') {
-              return 1.275;  // 15% slower than 1.5
-            } else if (this.type === 'BOMB') {
-              return 0.8;
-            }
+            if (this.type === 'QUICK') return 1.275;
+            if (this.type === 'BOMB') return 0.8;
             return 1;
           }
           calculateSize() {
@@ -351,7 +347,6 @@
             }
           }
           update() {
-            // Recalculate current speed every frame based on state.speedMultiplier
             const currentSpeed = state.baseSpeed * state.speedMultiplier * this.getSpeedMod();
             this.y -= currentSpeed;
             this.colorAngle = (this.colorAngle + 0.7) % 360;
@@ -387,6 +382,10 @@
             state.difficultyTimer = 0;
           }
           updateBackground();
+          // Update UI for multipliers so the player can see them change
+          document.getElementById('speedMultiplier').textContent = state.speedMultiplier.toFixed(1) + 'x';
+          document.getElementById('spawnMultiplier').textContent = state.spawnMultiplier.toFixed(1) + 'x';
+          
           ctx.save();
           if (shakeTimer > 0) {
             const shakeIntensity = 10;
@@ -440,8 +439,9 @@
           const rect = canvas.getBoundingClientRect();
           const scaleX = canvas.width / rect.width;
           const scaleY = canvas.height / rect.height;
-          const x = ((e.clientX || e.touches[0].clientX) - rect.left) * scaleX;
-          const y = ((e.clientY || e.touches[0].clientY) - rect.top) * scaleY;
+          // For touch events, ensure e.touches exists before using it
+          const x = ((e.clientX || (e.touches && e.touches[0].clientX)) - rect.left) * scaleX;
+          const y = ((e.clientY || (e.touches && e.touches[0].clientY)) - rect.top) * scaleY;
           let hit = false;
           for (let i = state.bubbles.length - 1; i >= 0; i--) {
             const bubble = state.bubbles[i];
