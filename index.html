@@ -23,10 +23,9 @@
     }
     #gameContainer {
       position: relative;
-      width: 95vmin;
-      height: 95vmin;
-      max-width: 600px;
-      max-height: 600px;
+      /* Remove fixed max dimensions so the canvas can scale fully */
+      width: 100vmin;
+      height: 100vmin;
       border-radius: 10px;
       overflow: hidden;
     }
@@ -69,10 +68,12 @@
       border-radius: 25px;
       color: white;
       cursor: pointer;
-      z-index: 2;
+      z-index: 3;
       backdrop-filter: blur(5px);
       box-shadow: 0 0 20px rgba(147,112,219,0.5);
       transition: all 0.3s ease;
+      /* Hide restart button during gameplay */
+      display: none;
     }
     #restart:hover {
       background: rgba(147, 112, 219, 1);
@@ -103,18 +104,14 @@
         const ctx = canvas.getContext('2d');
         let animationFrameId = null;
         let highScore = localStorage.getItem('bubbleHighScore') || 0;
-
-        // Array to hold explosion effects
+        
+        // Arrays to hold explosion and shatter effects
         const explosions = [];
-
-        // Initialize canvas dimensions
+        const shatters = [];
+        
+        // Responsive canvas: adjust size to be a square based on viewport
         const resizeCanvas = () => {
-          const container = document.getElementById('gameContainer');
-          const size = Math.min(
-            container.parentElement.clientWidth,
-            container.parentElement.clientHeight,
-            600
-          );
+          const size = Math.min(window.innerWidth, window.innerHeight);
           canvas.width = size;
           canvas.height = size;
           ctx.imageSmoothingEnabled = false;
@@ -136,7 +133,7 @@
           spawnMultiplier: 1
         };
 
-        // Explosion effect class
+        // Explosion effect for bombs
         class Explosion {
           constructor(x, y, color) {
             this.x = x;
@@ -146,7 +143,6 @@
             this.maxParticles = 15;
             this.color = color || 'rgba(255,50,50,0.9)';
             for (let i = 0; i < this.maxParticles; i++) {
-              // Each particle gets a random direction and speed
               const angle = Math.random() * Math.PI * 2;
               const speed = Math.random() * 3 + 2;
               this.particles.push({
@@ -176,7 +172,48 @@
             });
           }
         }
-
+        
+        // Shatter effect for orbs (non-bomb bubbles)
+        class Shatter {
+          constructor(x, y, baseColor) {
+            this.x = x;
+            this.y = y;
+            this.particles = [];
+            this.life = 40; // frames
+            this.maxParticles = 12;
+            // Use the base color with modifications
+            this.baseColor = baseColor || 'rgba(200,200,255,0.9)';
+            for (let i = 0; i < this.maxParticles; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = Math.random() * 2 + 1.5;
+              this.particles.push({
+                x: this.x,
+                y: this.y,
+                dx: Math.cos(angle) * speed,
+                dy: Math.sin(angle) * speed,
+                radius: Math.random() * 2 + 2,
+                opacity: 1
+              });
+            }
+          }
+          update() {
+            this.life--;
+            this.particles.forEach(p => {
+              p.x += p.dx;
+              p.y += p.dy;
+              p.opacity -= 0.03;
+            });
+          }
+          draw() {
+            this.particles.forEach(p => {
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+              ctx.fillStyle = `rgba(180, 180, 255, ${p.opacity})`;
+              ctx.fill();
+            });
+          }
+        }
+        
         class Bubble {
           constructor(type) {
             this.type = type || 'NORMAL';
@@ -189,17 +226,15 @@
             this.glowPhase = Math.random() * Math.PI * 2;
             this.rotation = 0;
           }
-
           // Adjust speed based on bubble type.
           getSpeedMod() {
             if (this.type === 'QUICK') {
-              return 1.5; // QUICK bubbles move faster
+              return 1.5;
             } else if (this.type === 'BOMB') {
-              return 0.8; // Bombs move a bit slower to allow the explosion effect
+              return 0.8;
             }
-            return 1; // Default for NORMAL bubbles
+            return 1;
           }
-
           calculateSize() {
             return {
               'QUICK': 25,
@@ -207,9 +242,7 @@
               'NORMAL': Math.random() * 30 + 30
             }[this.type];
           }
-
           createGradient() {
-            // Enhanced gradient for cool orb effect
             const gradient = ctx.createRadialGradient(
               this.x, this.y, this.size * 0.2,
               this.x, this.y, this.size
@@ -219,10 +252,9 @@
             gradient.addColorStop(1, `hsla(${(this.colorAngle + 120) % 360}, 60%, 50%, 0.3)`);
             return gradient;
           }
-
           draw() {
             if (this.type === 'BOMB') {
-              // Draw an elegant, 3D, glistening star (bomb)
+              // Draw elegant, 3D glistening star for bombs.
               ctx.save();
               ctx.translate(this.x, this.y);
               ctx.rotate(this.glowPhase);
@@ -235,21 +267,16 @@
                 const radius = (i % 2 === 0) ? outerRadius : innerRadius;
                 const px = Math.cos(angle) * radius;
                 const py = Math.sin(angle) * radius;
-                if (i === 0) {
-                  ctx.moveTo(px, py);
-                } else {
-                  ctx.lineTo(px, py);
-                }
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
               }
               ctx.closePath();
-              // Radial gradient for a glistening, semi-translucent look.
               const gradient = ctx.createRadialGradient(0, 0, innerRadius * 0.1, 0, 0, outerRadius);
               gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
               gradient.addColorStop(0.5, 'rgba(255, 0, 0, 0.6)');
               gradient.addColorStop(1, 'rgba(139, 0, 0, 0.3)');
               ctx.fillStyle = gradient;
               ctx.fill();
-              // Danger outline with pulsating glow.
               ctx.shadowColor = 'rgba(255, 0, 0, 0.8)';
               ctx.shadowBlur = 20 + Math.sin(this.glowPhase) * 10;
               ctx.lineWidth = 3;
@@ -257,13 +284,12 @@
               ctx.stroke();
               ctx.restore();
             } else {
-              // Draw cool orbs with extra glow and pulsation
+              // Draw cool orbs with extra glow and pulsation.
               ctx.save();
               ctx.beginPath();
               ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
               ctx.fillStyle = this.createGradient();
               ctx.fill();
-              // Extra glowing border effect
               ctx.shadowColor = `hsla(${this.colorAngle}, 100%, 70%, 0.7)`;
               ctx.shadowBlur = 40 + Math.sin(this.glowPhase) * 20;
               ctx.strokeStyle = `hsla(${(this.colorAngle + 180) % 360}, 100%, 80%, 0.6)`;
@@ -272,32 +298,28 @@
               ctx.restore();
             }
           }
-
           update() {
             this.y -= this.speed;
             this.colorAngle = (this.colorAngle + 0.7) % 360;
             this.glowPhase = (this.glowPhase + 0.06) % (Math.PI * 2);
             this.rotation += 0.03;
           }
-
           isClicked(x, y) {
             const dx = x - this.x;
             const dy = y - this.y;
             return Math.sqrt(dx * dx + dy * dy) < this.size;
           }
         }
-
+        
         function getRandomBubbleType() {
           const rand = Math.random();
           if (rand < 0.05) return 'BOMB';
           if (rand < 0.25) return 'QUICK';
           return 'NORMAL';
         }
-
+        
         function gameLoop(timestamp) {
           if (!state.gameActive) return;
-
-          // Difficulty progression: Increase speed multiplier faster (up to 17x) and spawn multiplier.
           state.difficultyTimer += 16.67;
           if (state.difficultyTimer >= 10000) {
             state.speedMultiplier = Math.min(17, state.speedMultiplier + 0.2);
@@ -306,16 +328,13 @@
             document.getElementById('speedMultiplier').textContent = `${state.speedMultiplier.toFixed(1)}x`;
             document.getElementById('spawnMultiplier').textContent = `${state.spawnMultiplier.toFixed(1)}x`;
           }
-
+          
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-          // Spawn bubbles based on spawn multiplier.
           if (timestamp - state.lastSpawn > state.baseSpawnRate / state.spawnMultiplier) {
             state.bubbles.push(new Bubble(getRandomBubbleType()));
             state.lastSpawn = timestamp;
           }
-
-          // Update and draw bubbles.
+          
           for (let i = state.bubbles.length - 1; i >= 0; i--) {
             const bubble = state.bubbles[i];
             bubble.update();
@@ -329,20 +348,25 @@
               }
             }
           }
-
+          
           // Update and draw explosion effects.
           for (let i = explosions.length - 1; i >= 0; i--) {
             const explosion = explosions[i];
             explosion.update();
             explosion.draw();
-            if (explosion.life <= 0) {
-              explosions.splice(i, 1);
-            }
+            if (explosion.life <= 0) explosions.splice(i, 1);
           }
-
+          // Update and draw shatter effects.
+          for (let i = shatters.length - 1; i >= 0; i--) {
+            const shatter = shatters[i];
+            shatter.update();
+            shatter.draw();
+            if (shatter.life <= 0) shatters.splice(i, 1);
+          }
+          
           animationFrameId = requestAnimationFrame(gameLoop);
         }
-
+        
         function handleInput(e) {
           if (!state.gameActive) return;
           const rect = canvas.getBoundingClientRect();
@@ -355,12 +379,13 @@
             const bubble = state.bubbles[i];
             if (bubble.isClicked(x, y)) {
               state.bubbles.splice(i, 1);
-              // If the bomb is clicked, spawn an explosion effect.
               if (bubble.type === 'BOMB') {
                 state.score = Math.max(0, state.score - 500);
                 state.lives = Math.max(0, state.lives - 2);
                 explosions.push(new Explosion(bubble.x, bubble.y, 'rgba(255,50,50,0.9)'));
               } else {
+                // Spawn shatter effect for normal or quick bubbles.
+                shatters.push(new Shatter(bubble.x, bubble.y, `hsla(${bubble.colorAngle},100%,80%,0.9)`));
                 state.score += Math.floor((100 - bubble.size) *
                   (bubble.type === 'QUICK' ? 1.5 : 1) * state.combo);
                 state.combo = Math.min(10, state.combo + 0.25);
@@ -379,7 +404,7 @@
             document.getElementById('combo').textContent = `${state.combo.toFixed(1)}x`;
           }
         }
-
+        
         function endGame() {
           state.gameActive = false;
           cancelAnimationFrame(animationFrameId);
@@ -388,9 +413,11 @@
             localStorage.setItem('bubbleHighScore', highScore);
             document.getElementById('highscore').textContent = highScore;
           }
+          // Show restart button overlay when game is over.
+          document.getElementById('restart').style.display = 'block';
           alert(`Game Over! Score: ${state.score}\nHigh Score: ${highScore}`);
         }
-
+        
         function restartGame() {
           state.score = 0;
           state.lives = 3;
@@ -401,17 +428,19 @@
           state.spawnMultiplier = 1;
           state.difficultyTimer = 0;
           explosions.length = 0;
+          shatters.length = 0;
           document.getElementById('score').textContent = '0';
           document.getElementById('lives').textContent = '3';
           document.getElementById('combo').textContent = '1x';
           document.getElementById('highscore').textContent = localStorage.getItem('bubbleHighScore') || 0;
           document.getElementById('speedMultiplier').textContent = '1x';
           document.getElementById('spawnMultiplier').textContent = '1x';
+          // Hide restart button during gameplay.
+          document.getElementById('restart').style.display = 'none';
           resizeCanvas();
           animationFrameId = requestAnimationFrame(gameLoop);
         }
-
-        // Event listeners
+        
         window.addEventListener('resize', resizeCanvas);
         canvas.addEventListener('mousedown', handleInput);
         canvas.addEventListener('touchstart', (e) => {
@@ -419,8 +448,7 @@
           handleInput(e);
         }, { passive: false });
         document.getElementById('restart').addEventListener('click', restartGame);
-
-        // Initialize game
+        
         resizeCanvas();
         restartGame();
       });
