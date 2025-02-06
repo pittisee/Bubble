@@ -13,55 +13,58 @@
     }
     body {
       margin: 0;
+      width: 100vw;
       height: 100vh;
-      /* Default background gradient */
       background: linear-gradient(45deg, #0f0c29, #302b63, #24243e);
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+      /* Smooth transition for theme changes */
+      transition: background 0.5s ease;
       display: flex;
       justify-content: center;
       align-items: center;
-      overflow: hidden;
-      font-family: Arial, sans-serif;
-      transition: background 0.5s ease;
     }
-    /* Fullscreen container */
+    /* Full-screen container that centers a square canvas */
     #gameContainer {
       position: relative;
       width: 100vw;
       height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
       overflow: hidden;
     }
+    /* The canvas is always square (using the minimum dimension) */
     #gameCanvas {
-      width: 100%;
-      height: 100%;
+      width: 100vmin;
+      height: 100vmin;
       display: block;
     }
-    #ui {
+    /* UI elements are positioned relative to the container */
+    #ui, #powerups {
       position: absolute;
+      color: white;
+      font-size: 18px;
+      line-height: 1.4;
+      pointer-events: none;
+      text-shadow: 0 0 10px rgba(255,255,255,0.5);
+      z-index: 2;
+    }
+    #ui {
       top: 15px;
       left: 15px;
-      color: white;
-      font-size: 18px;
-      line-height: 1.4;
-      pointer-events: none;
-      text-shadow: 0 0 10px rgba(255,255,255,0.5);
-      z-index: 2;
     }
     #powerups {
-      position: absolute;
       top: 15px;
       right: 15px;
-      color: white;
-      font-size: 18px;
-      line-height: 1.4;
-      pointer-events: none;
-      text-shadow: 0 0 10px rgba(255,255,255,0.5);
-      z-index: 2;
     }
+    /* Restart button is hidden during gameplay and will appear centered when needed */
     #restart {
       position: absolute;
-      bottom: 15px;
+      /* Center the restart button in the container */
+      top: 50%;
       left: 50%;
-      transform: translateX(-50%);
+      transform: translate(-50%, -50%);
       padding: 10px 20px;
       font-size: 18px;
       background: rgba(147, 112, 219, 0.8);
@@ -73,11 +76,11 @@
       backdrop-filter: blur(5px);
       box-shadow: 0 0 20px rgba(147,112,219,0.5);
       transition: all 0.3s ease;
-      display: none; /* Only show when game is over */
+      display: none;
     }
     #restart:hover {
       background: rgba(147, 112, 219, 1);
-      transform: translateX(-50%) scale(1.05);
+      transform: translate(-50%, -50%) scale(1.05);
     }
   </style>
 </head>
@@ -85,13 +88,13 @@
   <div id="gameContainer">
     <canvas id="gameCanvas"></canvas>
     <div id="ui">
-      Score: <span id="score">0</span><br />
-      High Score: <span id="highscore">0</span><br />
-      Lives: <span id="lives">3</span><br />
+      Score: <span id="score">0</span><br>
+      High Score: <span id="highscore">0</span><br>
+      Lives: <span id="lives">3</span><br>
       Combo: <span id="combo">1x</span>
     </div>
     <div id="powerups">
-      Speed: <span id="speedMultiplier">1x</span><br />
+      Speed: <span id="speedMultiplier">1x</span><br>
       Spawn: <span id="spawnMultiplier">1x</span>
     </div>
     <button id="restart">Restart</button>
@@ -105,20 +108,25 @@
         let animationFrameId = null;
         let highScore = localStorage.getItem('bubbleHighScore') || 0;
         
+        // For the earthquake (screen shake) effect
+        let shakeTimer = 0;
+        let prevTimestamp = 0;
+        
         const explosions = [];
         const shatters = [];
         
-        // Set canvas dimensions to full screen
+        // Adjust canvas size to be a square based on the smaller viewport dimension
         const resizeCanvas = () => {
-          canvas.width = window.innerWidth;
-          canvas.height = window.innerHeight;
+          const size = Math.min(window.innerWidth, window.innerHeight);
+          canvas.width = size;
+          canvas.height = size;
           ctx.imageSmoothingEnabled = false;
         };
 
         // Game state initialization
         const state = {
           score: 0,
-          lives: 5,
+          lives: 3,
           bubbles: [],
           gameActive: true,
           baseSpeed: 0.5,
@@ -131,7 +139,7 @@
           spawnMultiplier: 1
         };
 
-        // Explosion effect for bombs
+        // Explosion effect for bombs (red stars)
         class Explosion {
           constructor(x, y, color) {
             this.x = x;
@@ -217,6 +225,7 @@
             this.size = this.calculateSize();
             this.x = Math.random() * (canvas.width - this.size * 2) + this.size;
             this.y = canvas.height + this.size;
+            // Use getSpeedMod() for additional speed modification.
             this.speed = state.baseSpeed * state.speedMultiplier * this.getSpeedMod();
             this.colorAngle = Math.random() * 360;
             this.glowPhase = Math.random() * Math.PI * 2;
@@ -315,7 +324,15 @@
         
         function gameLoop(timestamp) {
           if (!state.gameActive) return;
-          state.difficultyTimer += 16.67;
+          
+          // Calculate frame delta for shake timer updates
+          const delta = timestamp - prevTimestamp;
+          prevTimestamp = timestamp;
+          if (shakeTimer > 0) {
+            shakeTimer = Math.max(0, shakeTimer - delta);
+          }
+          
+          state.difficultyTimer += delta;
           if (state.difficultyTimer >= 10000) {
             state.speedMultiplier = Math.min(17, state.speedMultiplier + 0.2);
             state.spawnMultiplier = Math.min(3, state.spawnMultiplier + 0.15);
@@ -325,15 +342,26 @@
           }
           
           // Theme changes at 2/5 (6.8x) and 4/5 (13.6x) thresholds.
-          if (state.speedMultiplier >= 10) {
+          if (state.speedMultiplier >= 13.6) {
             document.body.style.background = "linear-gradient(45deg, #000428, #004e92)";
-          } else if (state.speedMultiplier >= 5) {
+          } else if (state.speedMultiplier >= 6.8) {
             document.body.style.background = "linear-gradient(45deg, #1a2a6c, #b21f1f, #fdbb2d)";
           } else {
             document.body.style.background = "linear-gradient(45deg, #0f0c29, #302b63, #24243e)";
           }
           
+          // Begin drawing with a screen shake if active
+          ctx.save();
+          if (shakeTimer > 0) {
+            // Set a mild shake intensity
+            const shakeIntensity = 10;
+            const dx = (Math.random() - 0.5) * shakeIntensity;
+            const dy = (Math.random() - 0.5) * shakeIntensity;
+            ctx.translate(dx, dy);
+          }
+          
           ctx.clearRect(0, 0, canvas.width, canvas.height);
+          
           if (timestamp - state.lastSpawn > state.baseSpawnRate / state.spawnMultiplier) {
             state.bubbles.push(new Bubble(getRandomBubbleType()));
             state.lastSpawn = timestamp;
@@ -359,6 +387,7 @@
             explosion.draw();
             if (explosion.life <= 0) explosions.splice(i, 1);
           }
+          
           for (let i = shatters.length - 1; i >= 0; i--) {
             const shatter = shatters[i];
             shatter.update();
@@ -366,6 +395,7 @@
             if (shatter.life <= 0) shatters.splice(i, 1);
           }
           
+          ctx.restore();
           animationFrameId = requestAnimationFrame(gameLoop);
         }
         
@@ -385,9 +415,11 @@
                 state.score = Math.max(0, state.score - 500);
                 state.lives = Math.max(0, state.lives - 2);
                 explosions.push(new Explosion(bubble.x, bubble.y, 'rgba(255,50,50,0.9)'));
+                // Trigger screen shake for 2000ms (2 seconds)
+                shakeTimer = 2000;
               } else {
                 shatters.push(new Shatter(bubble.x, bubble.y, `hsla(${bubble.colorAngle},100%,80%,0.9)`));
-                state.score += Math.floor((100 - bubble.size) * (bubble.type === 'QUICK' ? 1.275 : 1) * state.combo);
+                state.score += Math.floor((100 - bubble.size) * ((bubble.type === 'QUICK' ? 1.275 : 1)) * state.combo);
                 state.combo = Math.min(10, state.combo + 0.25);
               }
               hit = true;
@@ -419,7 +451,7 @@
         
         function restartGame() {
           state.score = 0;
-          state.lives = 5;
+          state.lives = 3;
           state.combo = 1;
           state.bubbles = [];
           state.gameActive = true;
@@ -436,6 +468,10 @@
           document.getElementById('spawnMultiplier').textContent = '1x';
           document.getElementById('restart').style.display = 'none';
           resizeCanvas();
+          // Reset shake timer in case it was active
+          shakeTimer = 0;
+          // Initialize previous timestamp for the game loop
+          prevTimestamp = performance.now();
           animationFrameId = requestAnimationFrame(gameLoop);
         }
         
@@ -448,6 +484,7 @@
         document.getElementById('restart').addEventListener('click', restartGame);
         
         resizeCanvas();
+        prevTimestamp = performance.now();
         restartGame();
       });
     })();
