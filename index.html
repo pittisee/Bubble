@@ -2,8 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" 
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Cosmic Bubble Challenge</title>
   <style>
     * {
@@ -17,6 +16,7 @@
       margin: 0;
       width: 100vw;
       height: 100vh;
+      /* Initial warm background; will gradually change */
       background: linear-gradient(45deg, #0f0c29, #302b63, #24243e);
       font-family: Arial, sans-serif;
       overflow: hidden;
@@ -25,7 +25,7 @@
       justify-content: center;
       align-items: center;
     }
-    /* The game container fills the whole screen */
+    /* Game container fills entire viewport */
     #gameContainer {
       position: relative;
       width: 100vw;
@@ -35,13 +35,15 @@
       align-items: center;
       background: transparent;
     }
-    /* The canvas is always square and as large as possible without deformation */
+    /* Canvas remains square (side equals the minimum of viewport width/height) */
     #gameCanvas {
       width: 100vmin;
       height: 100vmin;
+      max-width: 600px;
+      max-height: 600px;
       display: block;
     }
-    /* UI elements */
+    /* UI elements in the container */
     #ui, #powerups {
       position: absolute;
       color: white;
@@ -59,7 +61,7 @@
       top: 15px;
       right: 15px;
     }
-    /* Game-over overlay (centered) */
+    /* Game over overlay */
     #gameOverOverlay {
       position: absolute;
       top: 0;
@@ -108,7 +110,7 @@
       Speed: <span id="speedMultiplier">1x</span><br>
       Spawn: <span id="spawnMultiplier">1x</span>
     </div>
-    <!-- Game-over overlay -->
+    <!-- End-of-game overlay -->
     <div id="gameOverOverlay">
       <div id="gameOverText"></div>
       <button id="restart">Restart</button>
@@ -126,14 +128,14 @@
         let animationFrameId = null;
         let highScore = localStorage.getItem('bubbleHighScore') || 0;
         
-        // For the screen shake (earthquake) effect
+        // For screen shake (earthquake) effect
         let shakeTimer = 0;
         let prevTimestamp = 0;
         
         const explosions = [];
         const shatters = [];
         
-        // Resize the canvas so that it remains a square equal to the minimum of window dimensions
+        // Resize canvas: always square with side = min(window.innerWidth, window.innerHeight)
         const resizeCanvas = () => {
           const size = Math.min(window.innerWidth, window.innerHeight);
           canvas.width = size;
@@ -141,7 +143,7 @@
           ctx.imageSmoothingEnabled = false;
         };
 
-        // Game state (lives now start at 5)
+        // Game state; lives start at 5
         const state = {
           score: 0,
           lives: 5,
@@ -157,7 +159,7 @@
           spawnMultiplier: 1
         };
 
-        // Helper functions for gradual background change (gradually cool over time)
+        // Helper functions for gradual background change
         function hexToRgb(hex) {
           hex = hex.replace(/^#/, '');
           if (hex.length === 3) {
@@ -180,10 +182,9 @@
           const b = Math.round(c1.b + (c2.b - c1.b) * factor);
           return rgbToHex(r, g, b);
         }
-        // Gradually update the background from a warm theme to a cooler theme as speedMultiplier increases.
+        // Update background gradually from warm to cool as speedMultiplier increases
         function updateBackground() {
           let factor = (state.speedMultiplier - 1) / (17 - 1);
-          // Start with warm colors and move toward cooler colors
           const warm1 = "#0f0c29", warm2 = "#302b63";
           const cool1 = "#000428", cool2 = "#004e92";
           const stop1 = interpolateColor(warm1, cool1, factor);
@@ -407,7 +408,7 @@
             const bubble = state.bubbles[i];
             bubble.update();
             bubble.draw();
-            // If the bubble (orb) goes past the top edge, decrease lives and trigger a shake.
+            // When an orb reaches the top (y < -bubble.size), decrease lives and shake the screen.
             if (bubble.y < -bubble.size) {
               state.bubbles.splice(i, 1);
               if (bubble.type !== 'BOMB') {
@@ -509,7 +510,9 @@
           animationFrameId = requestAnimationFrame(gameLoop);
         }
         
-        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('resize', () => {
+          resizeCanvas();
+        });
         canvas.addEventListener('mousedown', handleInput);
         canvas.addEventListener('touchstart', (e) => {
           e.preventDefault();
