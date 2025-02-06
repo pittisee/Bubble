@@ -1,150 +1,392 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Smooth Color Bubble Game</title>
-  <style>
-    /* Reset and base styles */
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
-      background: linear-gradient(45deg, #0f0c29, #302b63, #24243e);
-      font-family: sans-serif;
-    }
-    /* Scoreboard styling */
-    #scoreboard {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      color: #fff;
-      font-size: 24px;
-      z-index: 1000;
-    }
-    /* Game area container */
-    #gameArea {
-      position: relative;
-      width: 100%;
-      height: 100%;
-    }
-    /* Bubble styles (adapted from your design) */
-    .bubble {
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 30% 30%, 
-        rgba(255,105,180,0.9) 0%, 
-        rgba(147,112,219,0.6) 30%, 
-        rgba(32,178,170,0.3) 70%);
-      border: 2px solid rgba(255,255,255,0.3);
-      box-shadow: 
-        0 0 30px rgba(255,192,203,0.4),
-        0 0 50px rgba(147,112,219,0.3),
-        inset 0 0 15px rgba(255,255,255,0.2);
-      position: absolute;
-      cursor: pointer;
-      animation: float 4s ease-in-out infinite;
-      transition: transform 0.3s ease, filter 1.5s ease, opacity 0.2s ease;
-    }
-    .bubble:hover {
-      transform: scale(1.08);
-      filter: hue-rotate(180deg);
-    }
-    /* Smooth color transition layers */
-    .bubble::before {
-      content: "";
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      border-radius: 50%;
-      background: radial-gradient(circle at 70% 70%, 
-        rgba(255,215,0,0.8), 
-        rgba(255,165,0,0.6),
-        rgba(255,99,71,0.4));
-      opacity: 0;
-      animation: colorShift 8s infinite, crossfade 12s infinite;
-      mix-blend-mode: screen;
-    }
-    .bubble::after {
-      content: "";
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      border-radius: 50%;
-      background: radial-gradient(circle at 50% 20%, 
-        rgba(147,112,219,0.9), 
-        rgba(123,104,238,0.6),
-        rgba(0,255,255,0.3));
-      opacity: 0;
-      animation: colorShift 8s infinite reverse, crossfade 12s infinite reverse;
-      mix-blend-mode: screen;
-    }
-    @keyframes crossfade {
-      0%, 100% { opacity: 0.3; }
-      25% { opacity: 0.8; }
-      50% { opacity: 0.2; }
-      75% { opacity: 0.5; }
-    }
-    @keyframes colorShift {
-      0% { filter: hue-rotate(0deg); }
-      100% { filter: hue-rotate(360deg); }
-    }
-    @keyframes float {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-20px); }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cosmic Bubble Challenge</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: manipulation;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            background: linear-gradient(45deg, #0f0c29, #302b63, #24243e);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 95vmin;
+            height: 95vmin;
+            max-width: 600px;
+            max-height: 600px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #ui {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            color: white;
+            font-size: 18px;
+            line-height: 1.4;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+            z-index: 2;
+        }
+
+        #powerups {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            color: white;
+            font-size: 18px;
+            line-height: 1.4;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+            z-index: 2;
+        }
+
+        #restart {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            font-size: 18px;
+            background: rgba(147, 112, 219, 0.8);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 25px;
+            color: white;
+            cursor: pointer;
+            z-index: 2;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 0 20px rgba(147,112,219,0.5);
+            transition: all 0.3s ease;
+        }
+
+        #restart:hover {
+            background: rgba(147, 112, 219, 1);
+            transform: translateX(-50%) scale(1.05);
+        }
+    </style>
 </head>
 <body>
-  <div id="scoreboard">Score: 0</div>
-  <div id="gameArea"></div>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui">
+            Score: <span id="score">0</span><br>
+            High Score: <span id="highscore">0</span><br>
+            Lives: <span id="lives">3</span><br>
+            Combo: <span id="combo">1x</span>
+        </div>
+        <div id="powerups">
+            Speed: <span id="speedMultiplier">1x</span><br>
+            Spawn: <span id="spawnMultiplier">1x</span>
+        </div>
+        <button id="restart">Restart</button>
+    </div>
 
-  <script>
-    let score = 0;
-    const gameArea = document.getElementById("gameArea");
-    const scoreboard = document.getElementById("scoreboard");
+<script>
+(function() {
+    document.addEventListener('DOMContentLoaded', function() {
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let animationFrameId = null;
+        let highScore = localStorage.getItem('bubbleHighScore') || 0;
 
-    // Update the score display
-    function updateScore(points) {
-      score += points;
-      scoreboard.textContent = "Score: " + score;
-    }
+        // Initialize canvas dimensions
+        const resizeCanvas = () => {
+            const container = document.getElementById('gameContainer');
+            const size = Math.min(
+                container.parentElement.clientWidth,
+                container.parentElement.clientHeight,
+                600
+            );
+            canvas.width = size;
+            canvas.height = size;
+            ctx.imageSmoothingEnabled = false;
+        };
 
-    // Create and add a new bubble at a random position
-    function spawnBubble() {
-      const bubble = document.createElement("div");
-      bubble.className = "bubble";
-      
-      // Determine a random position within the game area
-      const areaWidth = gameArea.clientWidth - 80; // bubble width
-      const areaHeight = gameArea.clientHeight - 80; // bubble height
-      bubble.style.left = Math.random() * areaWidth + "px";
-      bubble.style.top = Math.random() * areaHeight + "px";
+        // Game state initialization
+        const state = {
+            score: 0,
+            lives: 3,
+            bubbles: [],
+            gameActive: true,
+            baseSpeed: 0.5,
+            baseSpawnRate: 1500,
+            difficultyTimer: 0,
+            lastSpawn: 0,
+            combo: 1,
+            comboTimeout: null,
+            speedMultiplier: 1,
+            spawnMultiplier: 1
+        };
 
-      // When clicked, "pop" the bubble and update score
-      bubble.addEventListener("click", function() {
-        // Pop animation: scale down and fade out
-        bubble.style.transform = "scale(0)";
-        bubble.style.opacity = "0";
-        updateScore(1);
-        // Remove the bubble after the pop animation
-        setTimeout(() => {
-          if (gameArea.contains(bubble)) {
-            gameArea.removeChild(bubble);
-          }
-          // Spawn a new bubble after a short delay
-          setTimeout(spawnBubble, 500);
-        }, 200);
-      });
+        class Bubble {
+            constructor(type) {
+                this.type = type || 'NORMAL';
+                this.size = this.calculateSize();
+                this.x = Math.random() * (canvas.width - this.size * 2) + this.size;
+                this.y = canvas.height + this.size;
+                // Fixed: Call getSpeedMod() which is now defined below.
+                this.speed = state.baseSpeed * state.speedMultiplier * this.getSpeedMod();
+                this.colorAngle = Math.random() * 360;
+                this.glowPhase = Math.random() * Math.PI * 2;
+                this.rotation = 0;
+            }
 
-      gameArea.appendChild(bubble);
-    }
+            // New method to modify speed based on bubble type.
+            getSpeedMod() {
+                if (this.type === 'QUICK') {
+                    return 1.5; // QUICK bubbles move faster
+                } else if (this.type === 'BOMB') {
+                    return 0.8; // Bombs might move a bit slower
+                }
+                return 1; // Default speed modifier for NORMAL bubbles
+            }
 
-    // Start the game by spawning an initial set of bubbles
-    for (let i = 0; i < 5; i++) {
-      setTimeout(spawnBubble, i * 500);
-    }
-  </script>
+            calculateSize() {
+                return {
+                    'QUICK': 25,
+                    'BOMB': 35,
+                    'NORMAL': Math.random() * 30 + 30
+                }[this.type];
+            }
+
+            createGradient() {
+                const gradient = ctx.createRadialGradient(
+                    this.x, this.y, this.size * 0.3,
+                    this.x, this.y, this.size
+                );
+                
+                gradient.addColorStop(0, `hsla(${this.colorAngle}, 100%, 70%, 0.9)`);
+                gradient.addColorStop(0.3, `hsla(${(this.colorAngle + 60) % 360}, 80%, 60%, 0.7)`);
+                gradient.addColorStop(0.7, `hsla(${(this.colorAngle + 120) % 360}, 60%, 50%, 0.4)`);
+                gradient.addColorStop(1, `hsla(${(this.colorAngle + 180) % 360}, 40%, 40%, 0.2)`);
+                
+                return gradient;
+            }
+
+            draw() {
+                if(this.type === 'BOMB') {
+                    // Bomb drawing code
+                    const bombSize = this.size;
+                    const x = this.x - bombSize/2;
+                    const y = this.y - bombSize/2;
+                    
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(x, y, bombSize, bombSize);
+                    
+                    ctx.fillStyle = '#FF0000';
+                    const pixelSize = bombSize/5;
+                    for(let i = 0; i < 3; i++) {
+                        ctx.fillRect(x + pixelSize * (i+1), y + pixelSize * 2, pixelSize, pixelSize);
+                    }
+                    
+                    ctx.fillStyle = '#FFD700';
+                    ctx.fillRect(x + bombSize - pixelSize*2, y - pixelSize*2, pixelSize, pixelSize*3);
+                } else {
+                    ctx.save();
+                    
+                    // Main bubble body
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    
+                    // Gradient fill
+                    ctx.fillStyle = this.createGradient();
+                    ctx.fill();
+                    
+                    // Glowing effect
+                    ctx.shadowColor = `hsla(${this.colorAngle}, 100%, 50%, 0.3)`;
+                    ctx.shadowBlur = 30 + Math.sin(this.glowPhase) * 15;
+                    
+                    // Animated border
+                    ctx.strokeStyle = `hsla(${(this.colorAngle + 180) % 360}, 100%, 70%, 0.6)`;
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    
+                    // Inner sparkle effect
+                    ctx.beginPath();
+                    ctx.arc(
+                        this.x + Math.cos(this.rotation) * this.size * 0.4,
+                        this.y + Math.sin(this.rotation) * this.size * 0.4,
+                        this.size * 0.15,
+                        0,
+                        Math.PI * 2
+                    );
+                    ctx.fillStyle = `hsla(0, 0%, 100%, ${0.5 + Math.sin(this.glowPhase) * 0.3})`;
+                    ctx.fill();
+                    
+                    ctx.restore();
+                }
+            }
+
+            update() {
+                this.y -= this.speed;
+                this.colorAngle = (this.colorAngle + 0.7) % 360;
+                this.glowPhase = (this.glowPhase + 0.06) % (Math.PI * 2);
+                this.rotation += 0.03;
+            }
+
+            isClicked(x, y) {
+                const dx = x - this.x;
+                const dy = y - this.y;
+                return Math.sqrt(dx * dx + dy * dy) < this.size;
+            }
+        }
+
+        function getRandomBubbleType() {
+            const rand = Math.random();
+            if(rand < 0.05) return 'BOMB';
+            if(rand < 0.25) return 'QUICK';
+            return 'NORMAL';
+        }
+
+        function gameLoop(timestamp) {
+            if(!state.gameActive) return;
+
+            // Difficulty progression
+            state.difficultyTimer += 16.67;
+            if(state.difficultyTimer >= 10000) {
+                state.speedMultiplier = Math.min(2, state.speedMultiplier + 0.1);
+                state.spawnMultiplier = Math.min(3, state.spawnMultiplier + 0.15);
+                state.difficultyTimer = 0;
+                document.getElementById('speedMultiplier').textContent = `${state.speedMultiplier.toFixed(1)}x`;
+                document.getElementById('spawnMultiplier').textContent = `${state.spawnMultiplier.toFixed(1)}x`;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Spawn bubbles
+            if(timestamp - state.lastSpawn > state.baseSpawnRate/state.spawnMultiplier) {
+                state.bubbles.push(new Bubble(getRandomBubbleType()));
+                state.lastSpawn = timestamp;
+            }
+
+            // Update bubbles
+            for(let i = state.bubbles.length - 1; i >= 0; i--) {
+                const bubble = state.bubbles[i];
+                bubble.update();
+                bubble.draw();
+
+                if(bubble.y < -bubble.size) {
+                    state.bubbles.splice(i, 1);
+                    if(bubble.type !== 'BOMB') {
+                        state.lives = Math.max(0, state.lives - 1);
+                        document.getElementById('lives').textContent = state.lives;
+                        if(state.lives <= 0) endGame();
+                    }
+                }
+            }
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function handleInput(e) {
+            if(!state.gameActive) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            const x = (e.clientX || e.touches[0].clientX - rect.left) * scaleX;
+            const y = (e.clientY || e.touches[0].clientY - rect.top) * scaleY;
+
+            let hit = false;
+            for(let i = state.bubbles.length - 1; i >= 0; i--) {
+                const bubble = state.bubbles[i];
+                if(bubble.isClicked(x, y)) {
+                    state.bubbles.splice(i, 1);
+                    if(bubble.type === 'BOMB') {
+                        state.score = Math.max(0, state.score - 500);
+                        state.lives = Math.max(0, state.lives - 2);
+                    } else {
+                        state.score += Math.floor((100 - bubble.size) * 
+                            (bubble.type === 'QUICK' ? 1.5 : 1) * state.combo);
+                        state.combo = Math.min(10, state.combo + 0.25);
+                    }
+                    hit = true;
+                }
+            }
+
+            document.getElementById('score').textContent = state.score;
+            document.getElementById('lives').textContent = state.lives;
+            
+            if(hit) {
+                clearTimeout(state.comboTimeout);
+                state.comboTimeout = setTimeout(() => {
+                    state.combo = 1;
+                    document.getElementById('combo').textContent = '1x';
+                }, 2000);
+                document.getElementById('combo').textContent = `${state.combo.toFixed(1)}x`;
+            }
+        }
+
+        function endGame() {
+            state.gameActive = false;
+            cancelAnimationFrame(animationFrameId);
+            
+            if(state.score > highScore) {
+                highScore = state.score;
+                localStorage.setItem('bubbleHighScore', highScore);
+                document.getElementById('highscore').textContent = highScore;
+            }
+            
+            alert(`Game Over! Score: ${state.score}\nHigh Score: ${highScore}`);
+        }
+
+        function restartGame() {
+            state.score = 0;
+            state.lives = 3;
+            state.combo = 1;
+            state.bubbles = [];
+            state.gameActive = true;
+            state.speedMultiplier = 1;
+            state.spawnMultiplier = 1;
+            state.difficultyTimer = 0;
+            
+            document.getElementById('score').textContent = '0';
+            document.getElementById('lives').textContent = '3';
+            document.getElementById('combo').textContent = '1x';
+            document.getElementById('highscore').textContent = localStorage.getItem('bubbleHighScore') || 0;
+            document.getElementById('speedMultiplier').textContent = '1x';
+            document.getElementById('spawnMultiplier').textContent = '1x';
+            
+            resizeCanvas();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // Event listeners
+        window.addEventListener('resize', resizeCanvas);
+        canvas.addEventListener('mousedown', handleInput);
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleInput(e);
+        }, { passive: false });
+        document.getElementById('restart').addEventListener('click', restartGame);
+
+        // Initialize game
+        resizeCanvas();
+        restartGame();
+    });
+})();
+</script>
 </body>
 </html>
