@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Cosmic Bubble Challenge</title>
   <style>
     * {
@@ -11,7 +11,6 @@
       box-sizing: border-box;
       touch-action: manipulation;
     }
-
     body {
       margin: 0;
       height: 100vh;
@@ -22,7 +21,6 @@
       overflow: hidden;
       font-family: Arial, sans-serif;
     }
-
     #gameContainer {
       position: relative;
       width: 95vmin;
@@ -32,13 +30,11 @@
       border-radius: 10px;
       overflow: hidden;
     }
-
     #gameCanvas {
       width: 100%;
       height: 100%;
       display: block;
     }
-
     #ui {
       position: absolute;
       top: 15px;
@@ -47,10 +43,9 @@
       font-size: 18px;
       line-height: 1.4;
       pointer-events: none;
-      text-shadow: 0 0 10px rgba(255,255,255,0.5);
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
       z-index: 2;
     }
-
     #powerups {
       position: absolute;
       top: 15px;
@@ -59,10 +54,9 @@
       font-size: 18px;
       line-height: 1.4;
       pointer-events: none;
-      text-shadow: 0 0 10px rgba(255,255,255,0.5);
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
       z-index: 2;
     }
-
     #restart {
       position: absolute;
       bottom: 15px;
@@ -71,16 +65,15 @@
       padding: 10px 20px;
       font-size: 18px;
       background: rgba(147, 112, 219, 0.8);
-      border: 2px solid rgba(255,255,255,0.3);
+      border: 2px solid rgba(255, 255, 255, 0.3);
       border-radius: 25px;
       color: white;
       cursor: pointer;
       z-index: 2;
       backdrop-filter: blur(5px);
-      box-shadow: 0 0 20px rgba(147,112,219,0.5);
+      box-shadow: 0 0 20px rgba(147, 112, 219, 0.5);
       transition: all 0.3s ease;
     }
-
     #restart:hover {
       background: rgba(147, 112, 219, 1);
       transform: translateX(-50%) scale(1.05);
@@ -91,13 +84,13 @@
   <div id="gameContainer">
     <canvas id="gameCanvas"></canvas>
     <div id="ui">
-      Score: <span id="score">0</span><br>
-      High Score: <span id="highscore">0</span><br>
-      Lives: <span id="lives">3</span><br>
+      Score: <span id="score">0</span><br />
+      High Score: <span id="highscore">0</span><br />
+      Lives: <span id="lives">3</span><br />
       Combo: <span id="combo">1x</span>
     </div>
     <div id="powerups">
-      Speed: <span id="speedMultiplier">1x</span><br>
+      Speed: <span id="speedMultiplier">1x</span><br />
       Spawn: <span id="spawnMultiplier">1x</span>
     </div>
     <button id="restart">Restart</button>
@@ -110,6 +103,26 @@
         const ctx = canvas.getContext('2d');
         let animationFrameId = null;
         let highScore = localStorage.getItem('bubbleHighScore') || 0;
+
+        // Utility function: Draws a star shape at (cx, cy) with the specified parameters.
+        function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
+          let rot = Math.PI / 2 * 3;
+          let step = Math.PI / spikes;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - outerRadius);
+          for (let i = 0; i < spikes; i++) {
+            let x = cx + Math.cos(rot) * outerRadius;
+            let y = cy + Math.sin(rot) * outerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+            x = cx + Math.cos(rot) * innerRadius;
+            y = cy + Math.sin(rot) * innerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+          }
+          ctx.lineTo(cx, cy - outerRadius);
+          ctx.closePath();
+        }
 
         // Initialize canvas dimensions
         const resizeCanvas = () => {
@@ -176,53 +189,51 @@
               this.x, this.y, this.size * 0.3,
               this.x, this.y, this.size
             );
-            
             gradient.addColorStop(0, `hsla(${this.colorAngle}, 100%, 70%, 0.9)`);
             gradient.addColorStop(0.3, `hsla(${(this.colorAngle + 60) % 360}, 80%, 60%, 0.7)`);
             gradient.addColorStop(0.7, `hsla(${(this.colorAngle + 120) % 360}, 60%, 50%, 0.4)`);
             gradient.addColorStop(1, `hsla(${(this.colorAngle + 180) % 360}, 40%, 40%, 0.2)`);
-            
             return gradient;
           }
 
           draw() {
-            if(this.type === 'BOMB') {
-              // Bomb drawing code
-              const bombSize = this.size;
-              const x = this.x - bombSize/2;
-              const y = this.y - bombSize/2;
-              
-              ctx.fillStyle = '#333';
-              ctx.fillRect(x, y, bombSize, bombSize);
-              
-              ctx.fillStyle = '#FF0000';
-              const pixelSize = bombSize/5;
-              for(let i = 0; i < 3; i++) {
-                ctx.fillRect(x + pixelSize * (i+1), y + pixelSize * 2, pixelSize, pixelSize);
-              }
-              
-              ctx.fillStyle = '#FFD700';
-              ctx.fillRect(x + bombSize - pixelSize*2, y - pixelSize*2, pixelSize, pixelSize*3);
+            if (this.type === 'BOMB') {
+              // New elegant bomb design: a glistening, floating star.
+              ctx.save();
+              ctx.translate(this.x, this.y);
+              // Rotate slowly for a dynamic 3D feel.
+              ctx.rotate(this.rotation);
+              // Create a radial gradient for the star.
+              let gradient = ctx.createRadialGradient(0, 0, this.size * 0.1, 0, 0, this.size);
+              gradient.addColorStop(0, 'rgba(255, 215, 0, 0.9)');  // bright gold at the center
+              gradient.addColorStop(0.5, 'rgba(255, 215, 0, 0.4)');
+              gradient.addColorStop(1, 'rgba(255, 215, 0, 0)');
+              // Draw a five-pointed star.
+              drawStar(ctx, 0, 0, 5, this.size, this.size * 0.5);
+              ctx.fillStyle = gradient;
+              ctx.fill();
+              // Add a subtle glistening outline.
+              ctx.shadowColor = 'rgba(255, 215, 0, 0.8)';
+              ctx.shadowBlur = 20;
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+              ctx.lineWidth = 2;
+              ctx.stroke();
+              ctx.restore();
             } else {
               ctx.save();
-              
               // Main bubble body
               ctx.beginPath();
               ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-              
-              // Gradient fill
+              // Gradient fill for bubble
               ctx.fillStyle = this.createGradient();
               ctx.fill();
-              
               // Glowing effect
               ctx.shadowColor = `hsla(${this.colorAngle}, 100%, 50%, 0.3)`;
               ctx.shadowBlur = 30 + Math.sin(this.glowPhase) * 15;
-              
               // Animated border
               ctx.strokeStyle = `hsla(${(this.colorAngle + 180) % 360}, 100%, 70%, 0.6)`;
               ctx.lineWidth = 3;
               ctx.stroke();
-              
               // Inner sparkle effect
               ctx.beginPath();
               ctx.arc(
@@ -234,7 +245,6 @@
               );
               ctx.fillStyle = `hsla(0, 0%, 100%, ${0.5 + Math.sin(this.glowPhase) * 0.3})`;
               ctx.fill();
-              
               ctx.restore();
             }
           }
@@ -255,18 +265,17 @@
 
         function getRandomBubbleType() {
           const rand = Math.random();
-          if(rand < 0.05) return 'BOMB';
-          if(rand < 0.25) return 'QUICK';
+          if (rand < 0.05) return 'BOMB';
+          if (rand < 0.25) return 'QUICK';
           return 'NORMAL';
         }
 
         function gameLoop(timestamp) {
-          if(!state.gameActive) return;
+          if (!state.gameActive) return;
 
-          // Difficulty progression:
-          // Increase the speed multiplier up to 17x and spawn multiplier up to 3x.
+          // Difficulty progression: Increase speed multiplier up to 17x and spawn multiplier up to 3x.
           state.difficultyTimer += 16.67;
-          if(state.difficultyTimer >= 10000) {
+          if (state.difficultyTimer >= 10000) {
             state.speedMultiplier = Math.min(17, state.speedMultiplier + 0.1);
             state.spawnMultiplier = Math.min(3, state.spawnMultiplier + 0.15);
             state.difficultyTimer = 0;
@@ -277,23 +286,22 @@
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
           // Spawn bubbles based on the adjusted spawn multiplier.
-          if(timestamp - state.lastSpawn > state.baseSpawnRate/state.spawnMultiplier) {
+          if (timestamp - state.lastSpawn > state.baseSpawnRate / state.spawnMultiplier) {
             state.bubbles.push(new Bubble(getRandomBubbleType()));
             state.lastSpawn = timestamp;
           }
 
           // Update bubbles
-          for(let i = state.bubbles.length - 1; i >= 0; i--) {
+          for (let i = state.bubbles.length - 1; i >= 0; i--) {
             const bubble = state.bubbles[i];
             bubble.update();
             bubble.draw();
-
-            if(bubble.y < -bubble.size) {
+            if (bubble.y < -bubble.size) {
               state.bubbles.splice(i, 1);
-              if(bubble.type !== 'BOMB') {
+              if (bubble.type !== 'BOMB') {
                 state.lives = Math.max(0, state.lives - 1);
                 document.getElementById('lives').textContent = state.lives;
-                if(state.lives <= 0) endGame();
+                if (state.lives <= 0) endGame();
               }
             }
           }
@@ -302,35 +310,32 @@
         }
 
         function handleInput(e) {
-          if(!state.gameActive) return;
+          if (!state.gameActive) return;
           const rect = canvas.getBoundingClientRect();
           const scaleX = canvas.width / rect.width;
           const scaleY = canvas.height / rect.height;
-          
           const x = (e.clientX || e.touches[0].clientX - rect.left) * scaleX;
           const y = (e.clientY || e.touches[0].clientY - rect.top) * scaleY;
 
           let hit = false;
-          for(let i = state.bubbles.length - 1; i >= 0; i--) {
+          for (let i = state.bubbles.length - 1; i >= 0; i--) {
             const bubble = state.bubbles[i];
-            if(bubble.isClicked(x, y)) {
+            if (bubble.isClicked(x, y)) {
               state.bubbles.splice(i, 1);
-              if(bubble.type === 'BOMB') {
+              if (bubble.type === 'BOMB') {
                 state.score = Math.max(0, state.score - 500);
                 state.lives = Math.max(0, state.lives - 2);
               } else {
-                state.score += Math.floor((100 - bubble.size) * 
+                state.score += Math.floor((100 - bubble.size) *
                   (bubble.type === 'QUICK' ? 1.5 : 1) * state.combo);
                 state.combo = Math.min(10, state.combo + 0.25);
               }
               hit = true;
             }
           }
-
           document.getElementById('score').textContent = state.score;
           document.getElementById('lives').textContent = state.lives;
-          
-          if(hit) {
+          if (hit) {
             clearTimeout(state.comboTimeout);
             state.comboTimeout = setTimeout(() => {
               state.combo = 1;
@@ -343,13 +348,11 @@
         function endGame() {
           state.gameActive = false;
           cancelAnimationFrame(animationFrameId);
-          
-          if(state.score > highScore) {
+          if (state.score > highScore) {
             highScore = state.score;
             localStorage.setItem('bubbleHighScore', highScore);
             document.getElementById('highscore').textContent = highScore;
           }
-          
           alert(`Game Over! Score: ${state.score}\nHigh Score: ${highScore}`);
         }
 
@@ -362,14 +365,12 @@
           state.speedMultiplier = 1;
           state.spawnMultiplier = 1;
           state.difficultyTimer = 0;
-          
           document.getElementById('score').textContent = '0';
           document.getElementById('lives').textContent = '3';
           document.getElementById('combo').textContent = '1x';
           document.getElementById('highscore').textContent = localStorage.getItem('bubbleHighScore') || 0;
           document.getElementById('speedMultiplier').textContent = '1x';
           document.getElementById('spawnMultiplier').textContent = '1x';
-          
           resizeCanvas();
           animationFrameId = requestAnimationFrame(gameLoop);
         }
