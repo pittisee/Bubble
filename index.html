@@ -12,7 +12,7 @@
       box-sizing: border-box;
       touch-action: manipulation;
     }
-    /* Body fills the whole screen; background gradually cools */
+    /* Body fills entire screen; background gradually changes */
     body {
       margin: 0;
       width: 100vw;
@@ -25,7 +25,7 @@
       justify-content: center;
       align-items: center;
     }
-    /* Game container fills entire viewport */
+    /* The game container fills the whole viewport */
     #gameContainer {
       position: relative;
       width: 100vw;
@@ -33,9 +33,8 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      background: transparent;
     }
-    /* Canvas is always square: its side = min(window.innerWidth, window.innerHeight) */
+    /* The canvas is always square: its side equals min(window.innerWidth, window.innerHeight) */
     #gameCanvas {
       width: 100vmin;
       height: 100vmin;
@@ -43,7 +42,7 @@
       max-height: 600px;
       display: block;
     }
-    /* UI elements (score, lives, etc.) */
+    /* UI elements for score, lives, etc. */
     #ui, #powerups {
       position: absolute;
       color: white;
@@ -61,7 +60,7 @@
       top: 15px;
       right: 15px;
     }
-    /* Game over overlay, centered in the container */
+    /* End-of-game overlay */
     #gameOverOverlay {
       position: absolute;
       top: 0;
@@ -127,14 +126,14 @@
         let animationFrameId = null;
         let highScore = localStorage.getItem('bubbleHighScore') || 0;
         
-        // For screen shake effect (in ms)
+        // For the screen shake effect (in ms)
         let shakeTimer = 0;
         let prevTimestamp = 0;
         
         const explosions = [];
         const shatters = [];
         
-        // Resize canvas: always a square (side = min(window.innerWidth, window.innerHeight))
+        // Resize the canvas so that it is always square (side = min(window.innerWidth, window.innerHeight))
         const resizeCanvas = () => {
           const size = Math.min(window.innerWidth, window.innerHeight);
           canvas.width = size;
@@ -158,7 +157,7 @@
           spawnMultiplier: 1
         };
 
-        // Helper functions for gradual background change (from warm to cool)
+        // Helper functions for gradual background change (warm to cool)
         function hexToRgb(hex) {
           hex = hex.replace(/^#/, '');
           if (hex.length === 3) {
@@ -182,7 +181,7 @@
           return rgbToHex(r, g, b);
         }
         function updateBackground() {
-          // Factor from 0 (speedMultiplier = 1) to 1 (speedMultiplier = 17)
+          // Map speedMultiplier from 1 to 17 into factor 0 to 1
           let factor = (state.speedMultiplier - 1) / (17 - 1);
           const warm1 = "#0f0c29", warm2 = "#302b63";
           const cool1 = "#000428", cool2 = "#004e92";
@@ -284,7 +283,7 @@
           }
           getSpeedMod() {
             if (this.type === 'QUICK') {
-              return 1.275; // 15% slower than 1.5
+              return 1.275;  // 15% slower than 1.5
             } else if (this.type === 'BOMB') {
               return 0.8;
             }
@@ -352,7 +351,7 @@
             }
           }
           update() {
-            // Recalculate speed each frame so that speedMultiplier affects all bubbles
+            // Recalculate current speed every frame based on state.speedMultiplier
             const currentSpeed = state.baseSpeed * state.speedMultiplier * this.getSpeedMod();
             this.y -= currentSpeed;
             this.colorAngle = (this.colorAngle + 0.7) % 360;
@@ -380,6 +379,7 @@
           if (shakeTimer > 0) {
             shakeTimer = Math.max(0, shakeTimer - delta);
           }
+          
           state.difficultyTimer += delta;
           if (state.difficultyTimer >= 10000) {
             state.speedMultiplier = Math.min(17, state.speedMultiplier + 0.2);
@@ -401,11 +401,11 @@
             state.lastSpawn = timestamp;
           }
           
-          // Update bubbles; if a bubble goes past the top (y < -bubble.size), remove it and reduce lives (for non-bombs)
           for (let i = state.bubbles.length - 1; i >= 0; i--) {
             const bubble = state.bubbles[i];
             bubble.update();
             bubble.draw();
+            // If an orb goes above the top edge (y < -bubble.size), remove it and (if non-bomb) reduce lives
             if (bubble.y < -bubble.size) {
               state.bubbles.splice(i, 1);
               if (bubble.type !== 'BOMB') {
@@ -515,6 +515,7 @@
         }, { passive: false });
         restartButton.addEventListener('click', restartGame);
         
+        // Initial setup
         resizeCanvas();
         prevTimestamp = performance.now();
         restartGame();
