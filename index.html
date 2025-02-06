@@ -11,11 +11,12 @@
       box-sizing: border-box;
       touch-action: manipulation;
     }
+    /* The body fills the entire screen and its background will be updated gradually */
     body {
       margin: 0;
       width: 100vw;
       height: 100vh;
-      background: linear-gradient(45deg, #0f0c29, #302b63, #24243e);
+      background: linear-gradient(45deg, #0f0c29, #302b63);
       font-family: Arial, sans-serif;
       overflow: hidden;
       transition: background 0.5s ease;
@@ -23,29 +24,32 @@
       justify-content: center;
       align-items: center;
     }
-    /* Original square container: 95vmin with a maximum of 600px */
+    /* Full-screen container that centers the square game area */
     #gameContainer {
       position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: transparent;
+    }
+    /* The game canvas is kept square based on the smaller viewport dimension */
+    #gameCanvas {
       width: 95vmin;
       height: 95vmin;
       max-width: 600px;
       max-height: 600px;
-      border-radius: 10px;
-      overflow: hidden;
-    }
-    #gameCanvas {
-      width: 100%;
-      height: 100%;
       display: block;
     }
-    /* UI elements positioned in the container */
+    /* UI elements positioned in the game container */
     #ui, #powerups {
       position: absolute;
       color: white;
       font-size: 18px;
       line-height: 1.4;
       pointer-events: none;
-      text-shadow: 0 0 10px rgba(255,255,255,0.5);
+      text-shadow: 0 0 10px rgba(0,0,0,0.5);
       z-index: 2;
     }
     #ui {
@@ -56,12 +60,25 @@
       top: 15px;
       right: 15px;
     }
-    /* Restart button now centered in the container */
-    #restart {
+    /* The game-over overlay covers the container when the game ends */
+    #gameOverOverlay {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 24px;
+      z-index: 4;
+      display: none;
+    }
+    #gameOverOverlay button {
+      margin-top: 20px;
       padding: 10px 20px;
       font-size: 18px;
       background: rgba(147, 112, 219, 0.8);
@@ -69,15 +86,13 @@
       border-radius: 25px;
       color: white;
       cursor: pointer;
-      z-index: 3;
       backdrop-filter: blur(5px);
       box-shadow: 0 0 20px rgba(147,112,219,0.5);
       transition: all 0.3s ease;
-      display: none;
     }
-    #restart:hover {
+    #gameOverOverlay button:hover {
       background: rgba(147, 112, 219, 1);
-      transform: translate(-50%, -50%) scale(1.05);
+      transform: scale(1.05);
     }
   </style>
 </head>
@@ -94,7 +109,11 @@
       Speed: <span id="speedMultiplier">1x</span><br>
       Spawn: <span id="spawnMultiplier">1x</span>
     </div>
-    <button id="restart">Restart</button>
+    <!-- Game over overlay (hidden during play) -->
+    <div id="gameOverOverlay">
+      <div id="gameOverText"></div>
+      <button id="restart">Restart</button>
+    </div>
   </div>
 
   <script>
@@ -102,6 +121,9 @@
       document.addEventListener('DOMContentLoaded', function() {
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        const gameOverOverlay = document.getElementById('gameOverOverlay');
+        const gameOverText = document.getElementById('gameOverText');
+        const restartButton = document.getElementById('restart');
         let animationFrameId = null;
         let highScore = localStorage.getItem('bubbleHighScore') || 0;
         
@@ -112,12 +134,12 @@
         const explosions = [];
         const shatters = [];
         
-        // Resize canvas using the container's dimensions (preserved as originally defined)
+        // Keep the canvas dimensions relative to the game container (preserving square aspect ratio)
         const resizeCanvas = () => {
           const container = document.getElementById('gameContainer');
           const size = Math.min(
-            container.parentElement.clientWidth,
-            container.parentElement.clientHeight,
+            container.clientWidth,
+            container.clientHeight,
             600
           );
           canvas.width = size;
@@ -140,6 +162,43 @@
           speedMultiplier: 1,
           spawnMultiplier: 1
         };
+
+        // Helper functions for color interpolation
+        function hexToRgb(hex) {
+          hex = hex.replace(/^#/, '');
+          if (hex.length === 3) {
+            hex = hex.split('').map(c => c + c).join('');
+          }
+          const num = parseInt(hex, 16);
+          return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+        }
+        function rgbToHex(r, g, b) {
+          return "#" + [r, g, b].map(x => {
+            const hex = x.toString(16);
+            return hex.length === 1 ? "0" + hex : hex;
+          }).join('');
+        }
+        function interpolateColor(color1, color2, factor) {
+          const c1 = hexToRgb(color1);
+          const c2 = hexToRgb(color2);
+          const r = Math.round(c1.r + (c2.r - c1.r) * factor);
+          const g = Math.round(c1.g + (c2.g - c1.g) * factor);
+          const b = Math.round(c1.b + (c2.b - c1.b) * factor);
+          return rgbToHex(r, g, b);
+        }
+        // Update the background gradually based on the speed multiplier
+        function updateBackground() {
+          // Factor from 0 (speedMultiplier=1) to 1 (speedMultiplier=17)
+          let factor = (state.speedMultiplier - 1) / (17 - 1);
+          // Interpolate between initial and final color stops
+          const initialStop1 = "#0f0c29";
+          const initialStop2 = "#302b63";
+          const finalStop1 = "#000428";
+          const finalStop2 = "#004e92";
+          const stop1 = interpolateColor(initialStop1, finalStop1, factor);
+          const stop2 = interpolateColor(initialStop2, finalStop2, factor);
+          document.body.style.background = `linear-gradient(45deg, ${stop1}, ${stop2})`;
+        }
 
         // Explosion effect for bombs (red stars)
         class Explosion {
@@ -228,13 +287,11 @@
             // Spawn from the very bottom of the canvas
             this.x = Math.random() * (canvas.width - this.size * 2) + this.size;
             this.y = canvas.height + this.size;
-            // Use getSpeedMod() for additional speed modification.
             this.speed = state.baseSpeed * state.speedMultiplier * this.getSpeedMod();
             this.colorAngle = Math.random() * 360;
             this.glowPhase = Math.random() * Math.PI * 2;
             this.rotation = 0;
           }
-          // Adjust speed based on bubble type.
           getSpeedMod() {
             if (this.type === 'QUICK') {
               // 15% slower than before (1.5 * 0.85 ≈ 1.275)
@@ -338,20 +395,8 @@
             state.speedMultiplier = Math.min(17, state.speedMultiplier + 0.2);
             state.spawnMultiplier = Math.min(3, state.spawnMultiplier + 0.15);
             state.difficultyTimer = 0;
-            document.getElementById('speedMultiplier').textContent = `${state.speedMultiplier.toFixed(1)}x`;
-            document.getElementById('spawnMultiplier').textContent = `${state.spawnMultiplier.toFixed(1)}x`;
           }
-          
-          // Theme changes at 2/5 (≈6.8x) and 4/5 (≈13.6x) thresholds.
-          if (state.speedMultiplier >= 13.6) {
-            document.body.style.background = "linear-gradient(45deg, #000428, #004e92)";
-          } else if (state.speedMultiplier >= 6.8) {
-            document.body.style.background = "linear-gradient(45deg, #1a2a6c, #b21f1f, #fdbb2d)";
-          } else {
-            document.body.style.background = "linear-gradient(45deg, #0f0c29, #302b63, #24243e)";
-          }
-          
-          // Save context and apply screen shake if active
+          updateBackground();
           ctx.save();
           if (shakeTimer > 0) {
             const shakeIntensity = 10;
@@ -359,7 +404,6 @@
             const dy = (Math.random() - 0.5) * shakeIntensity;
             ctx.translate(dx, dy);
           }
-          
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           
           if (timestamp - state.lastSpawn > state.baseSpawnRate / state.spawnMultiplier) {
@@ -367,6 +411,7 @@
             state.lastSpawn = timestamp;
           }
           
+          // Update bubbles and check if they cross the top edge
           for (let i = state.bubbles.length - 1; i >= 0; i--) {
             const bubble = state.bubbles[i];
             bubble.update();
@@ -375,10 +420,11 @@
               state.bubbles.splice(i, 1);
               if (bubble.type !== 'BOMB') {
                 state.lives = Math.max(0, state.lives - 1);
-                document.getElementById('lives').textContent = state.lives;
-                // Trigger screen shake when an orb (non-bomb) hits the top (end wall)
+                // Shake screen when a non-bomb orb hits the top
                 shakeTimer = 2000;
-                if (state.lives <= 0) endGame();
+                if (state.lives <= 0) {
+                  endGame();
+                }
               }
             }
           }
@@ -416,7 +462,6 @@
                 state.score = Math.max(0, state.score - 500);
                 state.lives = Math.max(0, state.lives - 2);
                 explosions.push(new Explosion(bubble.x, bubble.y, 'rgba(255,50,50,0.9)'));
-                // Trigger screen shake when a bomb is hit
                 shakeTimer = 2000;
               } else {
                 shatters.push(new Shatter(bubble.x, bubble.y, `hsla(${bubble.colorAngle},100%,80%,0.9)`));
@@ -444,10 +489,10 @@
           if (state.score > highScore) {
             highScore = state.score;
             localStorage.setItem('bubbleHighScore', highScore);
-            document.getElementById('highscore').textContent = highScore;
           }
-          document.getElementById('restart').style.display = 'block';
-          alert(`Game Over! Score: ${state.score}\nHigh Score: ${highScore}`);
+          // Display the game-over overlay with final scores
+          gameOverText.innerHTML = `<div>Game Over!</div><div>Score: ${state.score}</div><div>High Score: ${highScore}</div>`;
+          gameOverOverlay.style.display = 'flex';
         }
         
         function restartGame() {
@@ -464,24 +509,23 @@
           document.getElementById('score').textContent = '0';
           document.getElementById('lives').textContent = '5';
           document.getElementById('combo').textContent = '1x';
-          document.getElementById('highscore').textContent = localStorage.getItem('bubbleHighScore') || 0;
+          document.getElementById('highscore').textContent = highScore;
           document.getElementById('speedMultiplier').textContent = '1x';
           document.getElementById('spawnMultiplier').textContent = '1x';
-          document.getElementById('restart').style.display = 'none';
+          gameOverOverlay.style.display = 'none';
           resizeCanvas();
           shakeTimer = 0;
           prevTimestamp = performance.now();
           animationFrameId = requestAnimationFrame(gameLoop);
         }
         
-        // Use the original resize logic (preserving the square canvas size)
         window.addEventListener('resize', resizeCanvas);
         canvas.addEventListener('mousedown', handleInput);
         canvas.addEventListener('touchstart', (e) => {
           e.preventDefault();
           handleInput(e);
         }, { passive: false });
-        document.getElementById('restart').addEventListener('click', restartGame);
+        restartButton.addEventListener('click', restartGame);
         
         resizeCanvas();
         prevTimestamp = performance.now();
