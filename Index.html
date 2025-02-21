@@ -1,1 +1,228 @@
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>German City Temperature Aggregator - Single City</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f4f4f4;
+    }
+    h1 { color: #333; }
+    form { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 5px; }
+    input, select { padding: 8px; width: 250px; margin-bottom: 10px; }
+    button { padding: 8px 16px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background: #333; color: #fff; }
+    .loading { font-style: italic; }
+    #progress { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>German City Temperature Aggregator</h1>
+  <form id="tempForm">
+    <label for="apiKey">Pirate Weather API Key:</label>
+    <input type="text" id="apiKey" placeholder="Enter your API Key" required>
+    
+    <label for="citySelect">Select City:</label>
+    <select id="citySelect" required>
+      <option value="">Loading cities...</option>
+    </select>
+    
+    <label for="yearSelect">Select Year:</label>
+    <select id="yearSelect" required></select>
+    
+    <label for="monthSelect">Select Month:</label>
+    <select id="monthSelect" required></select>
+    
+    <button type="submit">Get Temperature Sum</button>
+  </form>
+  
+  <div id="progress"></div>
+  <div id="results"></div>
+  
+  <script>
+    // URL to fetch the list of all German cities in JSON format
+    const citiesURL = "https://raw.githubusercontent.com/pensnarik/german-cities/master/germany.json";
+    
+    // Global variables
+    let allCities = [];
+    const citySelect = document.getElementById('citySelect');
+    const yearSelect = document.getElementById('yearSelect');
+    const monthSelect = document.getElementById('monthSelect');
+    const progressDiv = document.getElementById('progress');
+    const resultsDiv = document.getElementById('results');
+    
+    // Populate the city dropdown
+    async function loadCities() {
+      try {
+        const res = await fetch(citiesURL);
+        const cities = await res.json();
+        // Sort alphabetically by city name
+        allCities = cities.sort((a, b) => a.name.localeCompare(b.name));
+        // Populate the dropdown
+        citySelect.innerHTML = "";
+        allCities.forEach(city => {
+          const opt = document.createElement("option");
+          opt.value = city.name;
+          opt.textContent = city.name;
+          citySelect.appendChild(opt);
+        });
+      } catch (error) {
+        citySelect.innerHTML = `<option value="">Error loading cities</option>`;
+        console.error("Error fetching cities:", error);
+      }
+    }
+    
+    // Populate the year dropdown (e.g., from currentYear - 10 to currentYear)
+    function populateYearDropdown() {
+      const currentYear = new Date().getFullYear();
+      const startYear = currentYear - 10;
+      yearSelect.innerHTML = "";
+      for (let y = startYear; y <= currentYear; y++) {
+        const opt = document.createElement("option");
+        opt.value = y;
+        opt.textContent = y;
+        // Default select current year
+        if (y === currentYear) opt.selected = true;
+        yearSelect.appendChild(opt);
+      }
+    }
+    
+    // Populate the month dropdown based on selected year.
+    // If selected year is current year, show months 1 to current month.
+    // Otherwise, show all 12 months.
+    function populateMonthDropdown() {
+      const selectedYear = parseInt(yearSelect.value);
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1; // getMonth is 0-based
+      let maxMonth = 12;
+      if (selectedYear === currentYear) {
+        maxMonth = currentMonth;
+      }
+      monthSelect.innerHTML = "";
+      for (let m = 1; m <= maxMonth; m++) {
+        const opt = document.createElement("option");
+        opt.value = m;
+        // Use full month names (optional)
+        const date = new Date(selectedYear, m - 1);
+        const monthName = date.toLocaleString('default', { month: 'long' });
+        opt.textContent = `${m} - ${monthName}`;
+        monthSelect.appendChild(opt);
+      }
+    }
+    
+    // Update month dropdown when year selection changes
+    yearSelect.addEventListener('change', populateMonthDropdown);
+    
+    // Helper: delay in ms
+    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+    
+    // Function to process the selected city for the chosen year and month
+    async function processCity(city) {
+      const { name, coords } = city;
+      if (!coords || !coords.lat || !coords.lon) {
+        return { city: name, sum: "No coords" };
+      }
+      const lat = coords.lat;
+      const lon = coords.lon;
+      const selectedYear = parseInt(yearSelect.value);
+      const selectedMonth = parseInt(monthSelect.value);
+      const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+      
+      let sumAvgTemp = 0;
+      let daysProcessed = 0;
+      for (let day = 1; day <= daysInMonth; day++) {
+        // Create a date for the selected year, month, and day.
+        // Even if the month is ongoing, allow processing.
+        const date = new Date(selectedYear, selectedMonth - 1, day, 12, 0, 0);
+        // Disallow future dates: if the selected year and month are the current ones,
+        // and the day is greater than today, skip processing.
+        const today = new Date();
+        if (selectedYear === today.getFullYear() &&
+            selectedMonth === (today.getMonth() + 1) &&
+            day > today.getDate()) {
+          continue;
+        }
+        const timestamp = Math.floor(date.getTime() / 1000);
+        // Build Pirate Weather Time Machine URL (using units=ca for SI)
+        const url = `https://timemachine.pirateweather.net/forecast/${document.getElementById('apiKey').value.trim()}/${lat},${lon},${timestamp}?units=ca&exclude=minutely,alerts,hourly`;
+        try {
+          const response = await fetch(url);
+          if (!response.ok) {
+            console.error(`Error for ${name} on ${date.toISOString().split('T')[0]}: ${response.statusText}`);
+            continue;
+          }
+          const data = await response.json();
+          // Expect daily block with a "data" array – use first element
+          if (data.daily && data.daily.data && data.daily.data.length > 0) {
+            const dayData = data.daily.data[0];
+            const tempHigh = dayData.temperatureHigh;
+            const tempLow = dayData.temperatureLow;
+            if (typeof tempHigh === "number" && typeof tempLow === "number") {
+              const avgTemp = (tempHigh + tempLow) / 2;
+              sumAvgTemp += avgTemp;
+              daysProcessed++;
+            }
+          }
+        } catch (err) {
+          console.error(`Fetch error for ${name} on ${date.toISOString().split('T')[0]}:`, err);
+        }
+        // Small delay to avoid hammering the API (adjust as needed)
+        await delay(200);
+      }
+      return { city: name, sum: daysProcessed ? sumAvgTemp.toFixed(2) : "N/A" };
+    }
+    
+    document.getElementById('tempForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const apiKey = document.getElementById('apiKey').value.trim();
+      if (!apiKey) {
+        alert('Please enter your API Key.');
+        return;
+      }
+      
+      // Get selected city object by matching the city name
+      const selectedCityName = citySelect.value;
+      const city = allCities.find(c => c.name === selectedCityName);
+      if (!city) {
+        alert("Selected city not found.");
+        return;
+      }
+      
+      // Get selected year and month
+      const selectedYear = parseInt(yearSelect.value);
+      const selectedMonth = parseInt(monthSelect.value);
+      const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+      
+      progressDiv.textContent = `Processing ${city.name} for ${selectedYear}-${selectedMonth} (${daysInMonth} days)...`;
+      
+      const result = await processCity(city);
+      
+      // Display result in a table (only one city)
+      const html = `<table>
+        <thead>
+          <tr><th>City</th><th>Sum of Daily Avg Temperatures (°C)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>${result.city}</td><td>${result.sum}</td></tr>
+        </tbody>
+      </table>`;
+      resultsDiv.innerHTML = html;
+      progressDiv.textContent = "Processing complete.";
+    });
+    
+    // Initialize page: load cities and populate year and month selectors
+    loadCities();
+    populateYearDropdown();
+    populateMonthDropdown();
+  </script>
+  <p style="margin-top:20px; font-size:0.9em;">
+    Note: For the current year, only months up to the current month are selectable. Additionally, within the current month, days later than today will be skipped.
+  </p>
+</body>
+</html>
