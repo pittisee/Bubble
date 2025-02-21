@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Baden-Württemberg City Temperature Aggregator</title>
+  <title>Baden‑Württemberg City Temperature Aggregator (Optimized)</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <h1>Baden-Württemberg City Temperature Aggregator</h1>
+  <h1>Baden‑Württemberg City Temperature Aggregator</h1>
   <form id="tempForm">
     <label for="apiKey">Pirate Weather API Key:</label>
     <input type="text" id="apiKey" placeholder="Enter your API Key" required>
@@ -45,25 +45,41 @@
   <div id="results"></div>
   
   <script>
-    // URL to fetch the list of all German cities (JSON from pensnarik/german-cities)
+    // URL to fetch the list of German cities (JSON from pensnarik/german-cities)
     const citiesURL = "https://raw.githubusercontent.com/pensnarik/german-cities/master/germany.json";
-    
-    // Global variables
     let allCities = [];
     const citySelect = document.getElementById('citySelect');
     const yearSelect = document.getElementById('yearSelect');
     const monthSelect = document.getElementById('monthSelect');
     const progressDiv = document.getElementById('progress');
     const resultsDiv = document.getElementById('results');
-    
-    // Load cities, then filter for those in Baden-Württemberg and sort alphabetically.
+
+    // Timeout helper using AbortController
+    function fetchWithTimeout(url, options = {}, timeout = 4000) {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      return fetch(url, { ...options, signal: controller.signal })
+             .finally(() => clearTimeout(id));
+    }
+
+    // Load and filter cities for Baden-Württemberg.
     async function loadCities() {
       try {
         const res = await fetch(citiesURL);
         const cities = await res.json();
-        // Filter for cities in Baden-Württemberg (adjust if needed)
+        // Filter for cities in Baden-Württemberg
         allCities = cities.filter(city => city.state === "Baden-Württemberg")
                            .sort((a, b) => a.name.localeCompare(b.name));
+        // If "Konstanz" is missing, add it manually.
+        if (!allCities.some(c => c.name.toLowerCase() === "konstanz")) {
+          allCities.push({
+            name: "Konstanz",
+            state: "Baden-Württemberg",
+            coords: { lat: 47.678, lon: 9.056 }
+          });
+        }
+        // Sort again after adding any manual entries
+        allCities.sort((a, b) => a.name.localeCompare(b.name));
         if (allCities.length === 0) {
           citySelect.innerHTML = `<option value="">No cities found for Baden-Württemberg.</option>`;
           return;
@@ -81,7 +97,7 @@
       }
     }
     
-    // Populate the year dropdown (from currentYear - 10 to currentYear)
+    // Populate the year dropdown (e.g., from currentYear - 10 to currentYear)
     function populateYearDropdown() {
       const currentYear = new Date().getFullYear();
       const startYear = currentYear - 10;
@@ -95,8 +111,7 @@
       }
     }
     
-    // Populate the month dropdown based on selected year.
-    // For the current year, allow months up to the current month; otherwise, show all 12 months.
+    // Populate month dropdown: if current year, only up to current month; else, all 12 months.
     function populateMonthDropdown() {
       const selectedYear = parseInt(yearSelect.value);
       const currentDate = new Date();
@@ -119,9 +134,6 @@
     
     yearSelect.addEventListener('change', populateMonthDropdown);
     
-    // Helper function: delay in ms
-    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-    
     // Process the selected city for the chosen year and month.
     async function processCity(city) {
       const { name, coords } = city;
@@ -133,48 +145,57 @@
       const selectedYear = parseInt(yearSelect.value);
       const selectedMonth = parseInt(monthSelect.value);
       const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+      const apiKey = document.getElementById('apiKey').value.trim();
       
-      let sumAvgTemp = 0;
-      let daysProcessed = 0;
-      
+      // Build an array of promises for each day (only for days not in the future)
+      const promises = [];
+      const today = new Date();
       for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(selectedYear, selectedMonth - 1, day, 12, 0, 0);
-        // Skip future days if current year & month are selected
-        const today = new Date();
+        // For current year/month, skip days in future
         if (selectedYear === today.getFullYear() &&
             selectedMonth === (today.getMonth() + 1) &&
             day > today.getDate()) {
           continue;
         }
+        const date = new Date(selectedYear, selectedMonth - 1, day, 12, 0, 0);
         const timestamp = Math.floor(date.getTime() / 1000);
-        // Build Pirate Weather Time Machine URL (units=ca for SI)
-        const apiKey = document.getElementById('apiKey').value.trim();
         const url = `https://timemachine.pirateweather.net/forecast/${apiKey}/${lat},${lon},${timestamp}?units=ca&exclude=minutely,alerts,hourly`;
-        console.log(`Requesting ${url}`);
-        try {
-          const response = await fetch(url);
-          if (!response.ok) {
-            console.error(`Error for ${name} on ${date.toISOString().split('T')[0]}: ${response.statusText}`);
-            continue;
-          }
-          const data = await response.json();
-          if (data.daily && data.daily.data && data.daily.data.length > 0) {
-            const dayData = data.daily.data[0];
-            const tempHigh = dayData.temperatureHigh;
-            const tempLow = dayData.temperatureLow;
-            if (typeof tempHigh === "number" && typeof tempLow === "number") {
-              const avgTemp = (tempHigh + tempLow) / 2;
-              sumAvgTemp += avgTemp;
-              daysProcessed++;
-            }
-          }
-        } catch (err) {
-          console.error(`Fetch error for ${name} on ${date.toISOString().split('T')[0]}:`, err);
-        }
-        // Small delay to avoid hammering the API (adjust as needed)
-        await delay(150);
+        // Add promise with timeout (set to 4 seconds per request)
+        promises.push(
+          fetchWithTimeout(url, {}, 4000)
+            .then(response => {
+              if (!response.ok) {
+                console.error(`Error for ${name} on ${date.toISOString().split('T')[0]}: ${response.statusText}`);
+                return null;
+              }
+              return response.json();
+            })
+            .catch(err => {
+              console.error(`Fetch error for ${name} on ${date.toISOString().split('T')[0]}:`, err);
+              return null;
+            })
+        );
       }
-      return { city: name, sum: daysProcessed ? sumAvgTemp.toFixed(2) : "N/A" };
+      
+      progressDiv.textContent = `Making ${promises.length} API requests in parallel...`;
+      
+      // Run all daily requests in parallel
+      const results = await Promise.all(promises);
+      let sumAvgTemp = 0;
+      let daysCount = 0;
+      results.forEach((data, index) => {
+        if (data && data.daily && data.daily.data && data.daily.data.length > 0) {
+          const dayData = data.daily.data[0];
+          const tempHigh = dayData.temperatureHigh;
+          const tempLow = dayData.temperatureLow;
+          if (typeof tempHigh === "number" && typeof tempLow === "number") {
+            const avgTemp = (tempHigh + tempLow) / 2;
+            sumAvgTemp += avgTemp;
+            daysCount++;
+          }
+        }
+      });
+      return { city: name, sum: daysCount ? sumAvgTemp.toFixed(2) : "N/A" };
     }
     
     document.getElementById('tempForm').addEventListener('submit', async function(e) {
@@ -194,26 +215,29 @@
       const selectedMonth = parseInt(monthSelect.value);
       const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
       progressDiv.textContent = `Processing ${city.name} for ${selectedYear}-${selectedMonth} (${daysInMonth} days)...`;
+      
+      const startTime = Date.now();
       const result = await processCity(city);
+      const elapsed = (Date.now() - startTime) / 1000;
       const html = `<table>
         <thead>
-          <tr><th>City</th><th>Sum of Daily Avg Temperatures (°C)</th></tr>
+          <tr><th>City</th><th>Sum of Daily Avg Temperatures (°C)</th><th>Time (s)</th></tr>
         </thead>
         <tbody>
-          <tr><td>${result.city}</td><td>${result.sum}</td></tr>
+          <tr><td>${result.city}</td><td>${result.sum}</td><td>${elapsed.toFixed(2)}</td></tr>
         </tbody>
       </table>`;
       resultsDiv.innerHTML = html;
       progressDiv.textContent = "Processing complete.";
     });
     
-    // Initialize
+    // Initialize selectors and load cities
     loadCities();
     populateYearDropdown();
     populateMonthDropdown();
   </script>
   <p style="margin-top:20px; font-size:0.9em;">
-    Note: For the current year, only months up to the current month are selectable. Within the current month, days later than today are skipped. If you encounter CORS issues, you might need a proxy or to run the code from a permitted domain.
+    Note: All daily API calls are executed in parallel. For the current year, only months up to the current month are selectable and future days within the current month are skipped.
   </p>
 </body>
 </html>
