@@ -1,526 +1,187 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Cosmic Bubble Challenge</title>
+  <meta charset="UTF-8">
+  <title>German Cities Temperature Aggregator with Pirate Weather</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      touch-action: manipulation;
-    }
-    /* Body fills entire screen; background gradually changes */
     body {
-      margin: 0;
-      width: 100vw;
-      height: 100vh;
-      background: linear-gradient(45deg, #0f0c29, #302b63, #24243e);
       font-family: Arial, sans-serif;
-      overflow: hidden;
-      transition: background 0.5s ease;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      padding: 20px;
+      background: #f4f4f4;
     }
-    /* The game container fills the whole viewport */
-    #gameContainer {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-    /* The canvas is always square: its side equals min(window.innerWidth, window.innerHeight) */
-    #gameCanvas {
-      width: 100vmin;
-      height: 100vmin;
-      max-width: 600px;
-      max-height: 600px;
-      display: block;
-    }
-    /* UI elements for score, lives, etc. */
-    #ui, #powerups {
-      position: absolute;
-      color: white;
-      font-size: 18px;
-      line-height: 1.4;
-      pointer-events: none;
-      text-shadow: 0 0 10px rgba(0,0,0,0.5);
-      z-index: 2;
-    }
-    #ui {
-      top: 15px;
-      left: 15px;
-    }
-    #powerups {
-      top: 15px;
-      right: 15px;
-    }
-    /* End-of-game overlay */
-    #gameOverOverlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.7);
-      color: #fff;
-      display: none;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      font-size: 24px;
-      z-index: 4;
-    }
-    #gameOverOverlay button {
-      margin-top: 20px;
-      padding: 10px 20px;
-      font-size: 18px;
-      background: rgba(147, 112, 219, 0.8);
-      border: 2px solid rgba(255,255,255,0.3);
-      border-radius: 25px;
-      color: white;
-      cursor: pointer;
-      backdrop-filter: blur(5px);
-      box-shadow: 0 0 20px rgba(147,112,219,0.5);
-      transition: all 0.3s ease;
-    }
-    #gameOverOverlay button:hover {
-      background: rgba(147, 112, 219, 1);
-      transform: scale(1.05);
-    }
+    h1 { color: #333; }
+    form { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 5px; }
+    input, select { padding: 8px; width: 250px; margin-bottom: 10px; }
+    button { padding: 8px 16px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background: #333; color: #fff; }
+    .loading { font-style: italic; }
+    #progress { margin-top: 10px; }
   </style>
 </head>
 <body>
-  <div id="gameContainer">
-    <canvas id="gameCanvas"></canvas>
-    <div id="ui">
-      Score: <span id="score">0</span><br>
-      High Score: <span id="highscore">0</span><br>
-      Lives: <span id="lives">5</span><br>
-      Combo: <span id="combo">1x</span>
-    </div>
-    <div id="powerups">
-      Speed: <span id="speedMultiplier">1x</span><br>
-      Spawn: <span id="spawnMultiplier">1x</span>
-    </div>
-    <div id="gameOverOverlay">
-      <div id="gameOverText"></div>
-      <button id="restart">Restart</button>
-    </div>
-  </div>
-
+  <h1>German Cities Temperature Aggregator</h1>
+  <form id="tempForm">
+    <label for="apiKey">Pirate Weather API Key:</label>
+    <input type="text" id="apiKey" placeholder="Enter your API Key" required>
+    
+    <label for="month">Select Month:</label>
+    <select id="month">
+      <option value="1">January</option>
+      <option value="2">February</option>
+      <option value="3">March</option>
+      <option value="4">April</option>
+      <option value="5">May</option>
+      <option value="6">June</option>
+      <option value="7">July</option>
+      <option value="8">August</option>
+      <option value="9">September</option>
+      <option value="10">October</option>
+      <option value="11">November</option>
+      <option value="12">December</option>
+    </select>
+    
+    <button type="submit">Get Temperature Sums</button>
+  </form>
+  
+  <div id="progress"></div>
+  <div id="results"></div>
+  
   <script>
-    (function() {
-      document.addEventListener('DOMContentLoaded', function() {
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const gameOverOverlay = document.getElementById('gameOverOverlay');
-        const gameOverText = document.getElementById('gameOverText');
-        const restartButton = document.getElementById('restart');
-        let animationFrameId = null;
-        // Convert high score from storage to a number (or default to 0)
-        let highScore = Number(localStorage.getItem('bubbleHighScore')) || 0;
-        
-        // For the screen shake effect (in ms)
-        let shakeTimer = 0;
-        let prevTimestamp = 0;
-        
-        const explosions = [];
-        const shatters = [];
-        
-        // Resize the canvas so that it is always square (side = min(window.innerWidth, window.innerHeight))
-        const resizeCanvas = () => {
-          const size = Math.min(window.innerWidth, window.innerHeight);
-          canvas.width = size;
-          canvas.height = size;
-          ctx.imageSmoothingEnabled = false;
-        };
+    // URL to fetch the list of all German cities in JSON format
+    const citiesURL = "https://raw.githubusercontent.com/pensnarik/german-cities/master/germany.json";
+    
+    // For demonstration purposes, we limit the number of cities processed.
+    // Set maxCities = 10 to test; change it to the full list length (or remove the limit) for production.
+    const maxCities = 10; // <-- Change to e.g., Infinity or the actual count for all cities
 
-        // Game state (lives start at 5)
-        const state = {
-          score: 0,
-          lives: 5,
-          bubbles: [],
-          gameActive: true,
-          baseSpeed: 0.5,
-          baseSpawnRate: 1500,
-          difficultyTimer: 0,
-          lastSpawn: 0,
-          combo: 1,
-          comboTimeout: null,
-          speedMultiplier: 1,
-          spawnMultiplier: 1
-        };
-
-        // Helper functions for gradual background change (warm to cool)
-        function hexToRgb(hex) {
-          hex = hex.replace(/^#/, '');
-          if (hex.length === 3) {
-            hex = hex.split('').map(c => c + c).join('');
-          }
-          const num = parseInt(hex, 16);
-          return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+    // Concurrency limit (number of cities processed in parallel)
+    const concurrencyLimit = 5;
+    
+    document.getElementById('tempForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const apiKey = document.getElementById('apiKey').value.trim();
+      if (!apiKey) {
+        alert('Please enter your API Key.');
+        return;
+      }
+      
+      const month = parseInt(document.getElementById('month').value);
+      const year = new Date().getFullYear();
+      const daysInMonth = new Date(year, month, 0).getDate();
+      
+      const progressDiv = document.getElementById('progress');
+      const resultsDiv = document.getElementById('results');
+      progressDiv.textContent = "Loading cities...";
+      
+      // Fetch list of cities
+      let cities;
+      try {
+        const res = await fetch(citiesURL);
+        cities = await res.json();
+      } catch (error) {
+        alert("Error fetching cities: " + error);
+        return;
+      }
+      
+      // Optionally limit the cities processed (for demo/testing)
+      if (maxCities && cities.length > maxCities) {
+        cities = cities.slice(0, maxCities);
+      }
+      
+      progressDiv.textContent = `Processing ${cities.length} cities over ${daysInMonth} days...`;
+      
+      // Helper function: delay in ms
+      const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+      
+      // Function to process one city:
+      async function processCity(city) {
+        const { name, coords } = city;
+        if (!coords || !coords.lat || !coords.lon) {
+          return { city: name, sum: "No coords" };
         }
-        function rgbToHex(r, g, b) {
-          return "#" + [r, g, b].map(x => {
-            const hex = x.toString(16);
-            return hex.length === 1 ? "0" + hex : hex;
-          }).join('');
-        }
-        function interpolateColor(color1, color2, factor) {
-          const c1 = hexToRgb(color1);
-          const c2 = hexToRgb(color2);
-          const r = Math.round(c1.r + (c2.r - c1.r) * factor);
-          const g = Math.round(c1.g + (c2.g - c1.g) * factor);
-          const b = Math.round(c1.b + (c2.b - c1.b) * factor);
-          return rgbToHex(r, g, b);
-        }
-        function updateBackground() {
-          // Map speedMultiplier from 1 to 17 into factor 0 to 1
-          let factor = (state.speedMultiplier - 1) / (17 - 1);
-          const warm1 = "#0f0c29", warm2 = "#302b63";
-          const cool1 = "#000428", cool2 = "#004e92";
-          const stop1 = interpolateColor(warm1, cool1, factor);
-          const stop2 = interpolateColor(warm2, cool2, factor);
-          document.body.style.background = `linear-gradient(45deg, ${stop1}, ${stop2})`;
-        }
-
-        // Explosion effect for bombs (red stars)
-        class Explosion {
-          constructor(x, y, color) {
-            this.x = x;
-            this.y = y;
-            this.particles = [];
-            this.life = 60;
-            this.maxParticles = 15;
-            this.color = color || 'rgba(255,50,50,0.9)';
-            for (let i = 0; i < this.maxParticles; i++) {
-              const angle = Math.random() * Math.PI * 2;
-              const speed = Math.random() * 3 + 2;
-              this.particles.push({
-                x: this.x,
-                y: this.y,
-                dx: Math.cos(angle) * speed,
-                dy: Math.sin(angle) * speed,
-                radius: Math.random() * 3 + 2,
-                opacity: 1
-              });
+        const lat = coords.lat;
+        const lon = coords.lon;
+        let sumAvgTemp = 0;
+        let daysProcessed = 0;
+        for (let day = 1; day <= daysInMonth; day++) {
+          // Set time to noon (12:00) of that day for consistency
+          const date = new Date(year, month - 1, day, 12, 0, 0);
+          const timestamp = Math.floor(date.getTime() / 1000);
+          // Build Pirate Weather time machine URL
+          const url = `https://timemachine.pirateweather.net/forecast/${apiKey}/${lat},${lon},${timestamp}?units=ca&exclude=minutely,alerts,hourly`;
+          try {
+            const response = await fetch(url);
+            if (!response.ok) {
+              console.error(`Error for ${name} on ${date.toISOString().split('T')[0]}: ${response.statusText}`);
+              continue;
             }
-          }
-          update() {
-            this.life--;
-            this.particles.forEach(p => {
-              p.x += p.dx;
-              p.y += p.dy;
-              p.opacity = Math.max(0, p.opacity - 0.02);
-            });
-          }
-          draw() {
-            this.particles.forEach(p => {
-              ctx.beginPath();
-              ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-              ctx.fillStyle = `rgba(255,150,0,${p.opacity})`;
-              ctx.fill();
-            });
-          }
-        }
-        
-        // Shatter effect for non-bomb orbs
-        class Shatter {
-          constructor(x, y, baseColor) {
-            this.x = x;
-            this.y = y;
-            this.particles = [];
-            this.life = 40;
-            this.maxParticles = 12;
-            this.baseColor = baseColor || 'rgba(200,200,255,0.9)';
-            for (let i = 0; i < this.maxParticles; i++) {
-              const angle = Math.random() * Math.PI * 2;
-              const speed = Math.random() * 2 + 1.5;
-              this.particles.push({
-                x: this.x,
-                y: this.y,
-                dx: Math.cos(angle) * speed,
-                dy: Math.sin(angle) * speed,
-                radius: Math.random() * 2 + 2,
-                opacity: 1
-              });
-            }
-          }
-          update() {
-            this.life--;
-            this.particles.forEach(p => {
-              p.x += p.dx;
-              p.y += p.dy;
-              p.opacity = Math.max(0, p.opacity - 0.03);
-            });
-          }
-          draw() {
-            this.particles.forEach(p => {
-              ctx.beginPath();
-              ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-              ctx.fillStyle = `rgba(180,180,255,${p.opacity})`;
-              ctx.fill();
-            });
-          }
-        }
-        
-        class Bubble {
-          constructor(type) {
-            this.type = type || 'NORMAL';
-            this.size = this.calculateSize();
-            // Spawn from the very bottom of the canvas
-            this.x = Math.random() * (canvas.width - this.size * 2) + this.size;
-            this.y = canvas.height + this.size;
-            this.colorAngle = Math.random() * 360;
-            this.glowPhase = Math.random() * Math.PI * 2;
-            this.rotation = 0;
-          }
-          getSpeedMod() {
-            if (this.type === 'QUICK') return 1.275;
-            if (this.type === 'BOMB') return 0.8;
-            return 1;
-          }
-          calculateSize() {
-            return {
-              'QUICK': Math.round(25 * 1.15),
-              'BOMB': 35,
-              'NORMAL': Math.random() * 30 + 30
-            }[this.type];
-          }
-          createGradient() {
-            const gradient = ctx.createRadialGradient(
-              this.x, this.y, this.size * 0.2,
-              this.x, this.y, this.size
-            );
-            gradient.addColorStop(0, `hsla(${this.colorAngle},100%,80%,0.95)`);
-            gradient.addColorStop(0.5, `hsla(${(this.colorAngle+60)%360},80%,60%,0.7)`);
-            gradient.addColorStop(1, `hsla(${(this.colorAngle+120)%360},60%,50%,0.3)`);
-            return gradient;
-          }
-          draw() {
-            if (this.type === 'BOMB') {
-              ctx.save();
-              ctx.translate(this.x, this.y);
-              ctx.rotate(this.glowPhase);
-              const starPoints = 5;
-              const outerRadius = this.size;
-              const innerRadius = this.size * 0.5;
-              ctx.beginPath();
-              for (let i = 0; i < starPoints * 2; i++) {
-                const angle = (Math.PI / starPoints) * i;
-                const radius = (i % 2 === 0) ? outerRadius : innerRadius;
-                const px = Math.cos(angle) * radius;
-                const py = Math.sin(angle) * radius;
-                if (i === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-              }
-              ctx.closePath();
-              const gradient = ctx.createRadialGradient(0, 0, innerRadius * 0.1, 0, 0, outerRadius);
-              gradient.addColorStop(0, 'rgba(255,255,255,0.9)');
-              gradient.addColorStop(0.5, 'rgba(255,0,0,0.6)');
-              gradient.addColorStop(1, 'rgba(139,0,0,0.3)');
-              ctx.fillStyle = gradient;
-              ctx.fill();
-              ctx.shadowColor = 'rgba(255,0,0,0.8)';
-              ctx.shadowBlur = 20 + Math.sin(this.glowPhase) * 10;
-              ctx.lineWidth = 3;
-              ctx.strokeStyle = 'rgba(255,50,50,0.9)';
-              ctx.stroke();
-              ctx.restore();
-            } else {
-              ctx.save();
-              ctx.beginPath();
-              ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-              ctx.fillStyle = this.createGradient();
-              ctx.fill();
-              ctx.shadowColor = `hsla(${this.colorAngle},100%,70%,0.7)`;
-              ctx.shadowBlur = 40 + Math.sin(this.glowPhase) * 20;
-              ctx.strokeStyle = `hsla(${(this.colorAngle+180)%360},100%,80%,0.6)`;
-              ctx.lineWidth = 4;
-              ctx.stroke();
-              ctx.restore();
-            }
-          }
-          update() {
-            const currentSpeed = state.baseSpeed * state.speedMultiplier * this.getSpeedMod();
-            this.y -= currentSpeed;
-            this.colorAngle = (this.colorAngle + 0.7) % 360;
-            this.glowPhase = (this.glowPhase + 0.06) % (Math.PI * 2);
-            this.rotation += 0.03;
-          }
-          isClicked(x, y) {
-            const dx = x - this.x;
-            const dy = y - this.y;
-            return Math.sqrt(dx * dx + dy * dy) < this.size;
-          }
-        }
-        
-        function getRandomBubbleType() {
-          const rand = Math.random();
-          if (rand < 0.05) return 'BOMB';
-          if (rand < 0.25) return 'QUICK';
-          return 'NORMAL';
-        }
-        
-        function gameLoop(timestamp) {
-          if (!state.gameActive) return;
-          const delta = timestamp - prevTimestamp;
-          prevTimestamp = timestamp;
-          if (shakeTimer > 0) {
-            shakeTimer = Math.max(0, shakeTimer - delta);
-          }
-          
-          state.difficultyTimer += delta;
-          if (state.difficultyTimer >= 10000) {
-            state.speedMultiplier = Math.min(17, state.speedMultiplier + 0.2);
-            state.spawnMultiplier = Math.min(3, state.spawnMultiplier + 0.15);
-            state.difficultyTimer = 0;
-          }
-          updateBackground();
-          // Update UI for multipliers so the player can see them change
-          document.getElementById('speedMultiplier').textContent = state.speedMultiplier.toFixed(1) + 'x';
-          document.getElementById('spawnMultiplier').textContent = state.spawnMultiplier.toFixed(1) + 'x';
-          
-          ctx.save();
-          if (shakeTimer > 0) {
-            const shakeIntensity = 10;
-            const dx = (Math.random() - 0.5) * shakeIntensity;
-            const dy = (Math.random() - 0.5) * shakeIntensity;
-            ctx.translate(dx, dy);
-          }
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          
-          if (timestamp - state.lastSpawn > state.baseSpawnRate / state.spawnMultiplier) {
-            state.bubbles.push(new Bubble(getRandomBubbleType()));
-            state.lastSpawn = timestamp;
-          }
-          
-          for (let i = state.bubbles.length - 1; i >= 0; i--) {
-            const bubble = state.bubbles[i];
-            bubble.update();
-            bubble.draw();
-            // If an orb goes above the top edge (y < -bubble.size), remove it and (if non-bomb) reduce lives
-            if (bubble.y < -bubble.size) {
-              state.bubbles.splice(i, 1);
-              if (bubble.type !== 'BOMB') {
-                state.lives = Math.max(0, state.lives - 1);
-                shakeTimer = 2000;
-                if (state.lives <= 0) {
-                  endGame();
-                }
+            const data = await response.json();
+            // Expect a "daily" block with a "data" array – use the first element
+            if (data.daily && data.daily.data && data.daily.data.length > 0) {
+              const dayData = data.daily.data[0];
+              const tempHigh = dayData.temperatureHigh;
+              const tempLow = dayData.temperatureLow;
+              // Compute average as (high + low) / 2
+              if (typeof tempHigh === "number" && typeof tempLow === "number") {
+                const avgTemp = (tempHigh + tempLow) / 2;
+                sumAvgTemp += avgTemp;
+                daysProcessed++;
               }
             }
+          } catch (err) {
+            console.error(`Fetch error for ${name} on ${date.toISOString().split('T')[0]}:`, err);
           }
-          
-          for (let i = explosions.length - 1; i >= 0; i--) {
-            const explosion = explosions[i];
-            explosion.update();
-            explosion.draw();
-            if (explosion.life <= 0) explosions.splice(i, 1);
-          }
-          for (let i = shatters.length - 1; i >= 0; i--) {
-            const shatter = shatters[i];
-            shatter.update();
-            shatter.draw();
-            if (shatter.life <= 0) shatters.splice(i, 1);
-          }
-          
-          ctx.restore();
-          animationFrameId = requestAnimationFrame(gameLoop);
+          // Optional: small delay to avoid hammering the API (adjust as needed)
+          await delay(200);
         }
-        
-        function handleInput(e) {
-          if (!state.gameActive) return;
-          const rect = canvas.getBoundingClientRect();
-          const scaleX = canvas.width / rect.width;
-          const scaleY = canvas.height / rect.height;
-          // For touch events, ensure e.touches exists before using it
-          const x = ((e.clientX || (e.touches && e.touches[0].clientX)) - rect.left) * scaleX;
-          const y = ((e.clientY || (e.touches && e.touches[0].clientY)) - rect.top) * scaleY;
-          let hit = false;
-          for (let i = state.bubbles.length - 1; i >= 0; i--) {
-            const bubble = state.bubbles[i];
-            if (bubble.isClicked(x, y)) {
-              state.bubbles.splice(i, 1);
-              if (bubble.type === 'BOMB') {
-                state.score = Math.max(0, state.score - 500);
-                state.lives = Math.max(0, state.lives - 2);
-                explosions.push(new Explosion(bubble.x, bubble.y, 'rgba(255,50,50,0.9)'));
-                shakeTimer = 2000;
-              } else {
-                shatters.push(new Shatter(bubble.x, bubble.y, `hsla(${bubble.colorAngle},100%,80%,0.9)`));
-                state.score += Math.floor((100 - bubble.size) * ((bubble.type === 'QUICK' ? 1.275 : 1)) * state.combo);
-                state.combo = Math.min(10, state.combo + 0.25);
-              }
-              hit = true;
+        return { city: name, sum: daysProcessed ? sumAvgTemp.toFixed(2) : "N/A" };
+      }
+      
+      // Limited concurrency runner for city tasks
+      async function runLimited(tasks, limit) {
+        const results = [];
+        let index = 0;
+        async function worker() {
+          while (index < tasks.length) {
+            const currentIndex = index++;
+            try {
+              const res = await tasks[currentIndex]();
+              results[currentIndex] = res;
+            } catch (err) {
+              results[currentIndex] = { city: "Error", sum: "Error" };
             }
-          }
-          document.getElementById('score').textContent = state.score;
-          document.getElementById('lives').textContent = state.lives;
-          if (hit) {
-            clearTimeout(state.comboTimeout);
-            state.comboTimeout = setTimeout(() => {
-              state.combo = 1;
-              document.getElementById('combo').textContent = '1x';
-            }, 2000);
-            document.getElementById('combo').textContent = `${state.combo.toFixed(1)}x`;
+            progressDiv.textContent = `Processed ${currentIndex + 1} / ${tasks.length} cities...`;
           }
         }
-        
-        function endGame() {
-          state.gameActive = false;
-          cancelAnimationFrame(animationFrameId);
-          if (state.score > highScore) {
-            highScore = state.score;
-            localStorage.setItem('bubbleHighScore', highScore);
-          }
-          gameOverText.innerHTML = `<div>Game Over!</div><div>Score: ${state.score}</div><div>High Score: ${highScore}</div>`;
-          gameOverOverlay.style.display = 'flex';
+        const workers = [];
+        for (let i = 0; i < limit; i++) {
+          workers.push(worker());
         }
-        
-        function restartGame() {
-          state.score = 0;
-          state.lives = 5;
-          state.combo = 1;
-          state.bubbles = [];
-          state.gameActive = true;
-          state.speedMultiplier = 1;
-          state.spawnMultiplier = 1;
-          state.difficultyTimer = 0;
-          explosions.length = 0;
-          shatters.length = 0;
-          document.getElementById('score').textContent = '0';
-          document.getElementById('lives').textContent = '5';
-          document.getElementById('combo').textContent = '1x';
-          document.getElementById('highscore').textContent = highScore;
-          document.getElementById('speedMultiplier').textContent = '1x';
-          document.getElementById('spawnMultiplier').textContent = '1x';
-          gameOverOverlay.style.display = 'none';
-          resizeCanvas();
-          shakeTimer = 0;
-          prevTimestamp = performance.now();
-          animationFrameId = requestAnimationFrame(gameLoop);
-        }
-        
-        window.addEventListener('resize', resizeCanvas);
-        canvas.addEventListener('mousedown', handleInput);
-        canvas.addEventListener('touchstart', (e) => {
-          e.preventDefault();
-          handleInput(e);
-        }, { passive: false });
-        restartButton.addEventListener('click', restartGame);
-        
-        // Initial setup
-        resizeCanvas();
-        prevTimestamp = performance.now();
-        restartGame();
+        await Promise.all(workers);
+        return results;
+      }
+      
+      // Create an array of task functions for each city
+      const cityTasks = cities.map(city => () => processCity(city));
+      
+      progressDiv.textContent = "Starting city processing...";
+      const resultsArray = await runLimited(cityTasks, concurrencyLimit);
+      
+      // Build results table
+      let html = '<table><thead><tr><th>City</th><th>Sum of Daily Avg Temperatures (°C)</th></tr></thead><tbody>';
+      resultsArray.forEach(result => {
+        html += `<tr><td>${result.city}</td><td>${result.sum}</td></tr>`;
       });
-    })();
+      html += '</tbody></table>';
+      resultsDiv.innerHTML = html;
+      progressDiv.textContent = "Processing complete.";
+    });
   </script>
+  <p style="margin-top:20px; font-size:0.9em;">
+    Note: This demo makes a separate API call for every day and city. Processing all German cities may require thousands of calls and exceed API limits.
+  </p>
 </body>
 </html>
